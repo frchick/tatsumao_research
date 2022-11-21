@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:flutter_map/flutter_map.dart';
 
 void main()
 {
@@ -38,7 +40,26 @@ class _MyHomePageState extends State<MyHomePage>
         title: const Text("TatsumaO Research"),
       ),
       body: Center(
-        child: const Text("HogeHoge"),
+        child: FlutterMap(
+          options: MapOptions(
+            allowPanningOnScrollingParent: false,
+            interactiveFlags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+            center: LatLng(35.309934, 139.076056),  // 丸太の森P
+            zoom: 16,
+            maxZoom: 18,
+          ),
+          nonRotatedLayers: [
+            // 高さ陰影図
+            TileLayerOptions(
+              urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png",
+            ),
+            // 標準地図
+            TileLayerOptions(
+              urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+              opacity: 0.64
+            ),
+          ],
+        ),
       ),
     );
   }
