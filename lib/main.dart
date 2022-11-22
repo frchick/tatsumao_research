@@ -1,14 +1,7 @@
-import 'dart:io'; // HttpClient
-
+//import 'dart:io'; // HttpClient
 import 'package:flutter/material.dart';
-
-import 'package:http/http.dart';
-import 'package:http/retry.dart';
-
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map/src/layer/tile_layer/tile_provider/network_image_provider.dart';
-import 'package:flutter_map/src/layer/tile_layer/tile_provider/network_no_retry_image_provider.dart'; // FMNetworkNoRetryImageProvider
 
 void main()
 {
@@ -61,6 +54,7 @@ class _MyHomePageState extends State<MyHomePage>
             TileLayerOptions(
               urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png",
               tileProvider: MyTileProvider(headers: {'User-Agent': 'flutter_map (unknown)'}),
+              maxNativeZoom: 16,
             ),
             // 標準地図
             TileLayerOptions(
