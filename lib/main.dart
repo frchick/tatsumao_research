@@ -1,7 +1,11 @@
 //import 'dart:io'; // HttpClient
+import 'dart:async';   // Stream使った再描画
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
+
+import 'mypolyline_layer.dart';
 
 void main()
 {
@@ -33,6 +37,17 @@ class MyHomePage extends StatefulWidget
 
 class _MyHomePageState extends State<MyHomePage>
 {
+  // これまでに書いたライン
+  List<Polyline> _polylines = [];
+  var _redrawPolylineStream = StreamController<void>.broadcast();
+
+  // 今引いている最中のライン(ストローク)
+  List<MyPolyline> _currentStroke = [];
+  List<LatLng>? _currnetStrokePoints;
+  var _redrawStrokeStream = StreamController<void>.broadcast();
+
+  var _mapController = MapController();
+
   @override
   Widget build(BuildContext context)
   {
@@ -40,31 +55,104 @@ class _MyHomePageState extends State<MyHomePage>
       appBar: AppBar(
         title: const Text("TatsumaO Research"),
       ),
-      body: Center(
-        child: FlutterMap(
-          options: MapOptions(
-            allowPanningOnScrollingParent: false,
-            interactiveFlags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-            center: LatLng(35.309934, 139.076056),  // 丸太の森P
-            zoom: 16,
-            maxZoom: 18,
+      body: Stack(
+        children: [
+          // 地図
+          Center(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                allowPanningOnScrollingParent: false,
+                interactiveFlags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                center: LatLng(35.309934, 139.076056),  // 丸太の森P
+                zoom: 16,
+                maxZoom: 18,
+                onTap: onTap,
+                plugins: [
+                  MyPolylineLayerPlugin(),
+                ],
+              ),
+              nonRotatedLayers: [
+                // 高さ陰影図
+                TileLayerOptions(
+                  urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png",
+                  tileProvider: MyTileProvider(headers: {'User-Agent': 'flutter_map (unknown)'}),
+                  maxNativeZoom: 16,
+                ),
+                // 標準地図
+                TileLayerOptions(
+                  urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+                  opacity: 0.64
+                ),
+                // 手書き
+                PolylineLayerOptions(
+                  polylines: _polylines,
+                  rebuild: _redrawPolylineStream.stream,
+                ),
+                // 手書きの今引いている最中のライン
+                MyPolylineLayerOptions(
+                  polylines: _currentStroke,
+                  rebuild: _redrawStrokeStream.stream,
+                ),
+              ],
+            ),
           ),
-          nonRotatedLayers: [
-            // 高さ陰影図
-            TileLayerOptions(
-              urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png",
-              tileProvider: MyTileProvider(headers: {'User-Agent': 'flutter_map (unknown)'}),
-              maxNativeZoom: 16,
+          // 手書き
+          Container(
+            child: GestureDetector(
+              onPanStart: (details)
+              {
+                if(_currnetStrokePoints == null){
+                  final pt = details.localPosition;
+                  final point = _mapController.pointToLatLng(CustomPoint(pt.dx, pt.dy));
+                  _currnetStrokePoints = [ point! ];
+                }
+              },
+              onPanUpdate: (details)
+              {
+                if(_currnetStrokePoints != null){
+                  final pt = details.localPosition;
+                  final point = _mapController.pointToLatLng(CustomPoint(pt.dx, pt.dy));
+                  _currnetStrokePoints!.add(point!);
+
+                  var polyline = MyPolyline(
+                    points: _currnetStrokePoints!,
+                    color: Color(0xFFFF0000),
+                    strokeWidth: 4.0,
+                    shouldRepaint: true);
+                  
+                  if(_currentStroke.isEmpty) _currentStroke.add(polyline);
+                  else _currentStroke[0] = polyline;
+                  _redrawStrokeStream.sink.add(null);
+                }
+              },
+              onPanEnd: (details)
+              {
+                if(_currnetStrokePoints != null){
+                  //!!!!
+                  print("The stroke has ${_currnetStrokePoints!.length} points.");
+                  var polyline = Polyline(
+                    points: _currnetStrokePoints!,
+                    color: Color(0xFF00FF00),
+                    strokeWidth: 4.0);
+                  _polylines.add(polyline);
+                  _redrawPolylineStream.sink.add(null);
+
+                  _currnetStrokePoints = null;
+                }
+                _currentStroke.clear();
+                _redrawStrokeStream.sink.add(null);
+              },
             ),
-            // 標準地図
-            TileLayerOptions(
-              urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
-              opacity: 0.64
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  void onTap(TapPosition tapPosition, LatLng point)
+  {
+    print("onTap() !!!!");
   }
 }
 
