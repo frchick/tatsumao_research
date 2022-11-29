@@ -43,7 +43,7 @@ class MyPolyline {
   final List<LatLng> points;
   final List<Offset> offsets = [];
   final double strokeWidth;
-  final Color color;
+  /*final*/ Color color;    // 変更可能！！
   final double borderStrokeWidth;
   final Color? borderColor;
   final List<Color>? gradientColors;

@@ -1,11 +1,12 @@
 //import 'dart:io'; // HttpClient
-import 'dart:async';   // Stream使った再描画
+import 'dart:async';   // Stream使った再描画、Timer
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
 
 import 'mypolyline_layer.dart';
+import 'freehand_drawing.dart';
 
 void main()
 {
@@ -37,16 +38,15 @@ class MyHomePage extends StatefulWidget
 
 class _MyHomePageState extends State<MyHomePage>
 {
-  // これまでに書いたライン
-  List<Polyline> _polylines = [];
-  var _redrawPolylineStream = StreamController<void>.broadcast();
+  late MapController _mapController = MapController();
 
-  // 今引いている最中のライン(ストローク)
-  List<MyPolyline> _currentStroke = [];
-  List<LatLng>? _currnetStrokePoints;
-  var _redrawStrokeStream = StreamController<void>.broadcast();
+  @override
+  void initState()
+  {
+    _mapController = MapController();
+    freehandDrawing = FreehandDrawing(mapController:_mapController);
+  }
 
-  var _mapController = MapController();
 
   @override
   Widget build(BuildContext context)
@@ -84,16 +84,10 @@ class _MyHomePageState extends State<MyHomePage>
                   urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
                   opacity: 0.64
                 ),
-                // 手書き
-                PolylineLayerOptions(
-                  polylines: _polylines,
-                  rebuild: _redrawPolylineStream.stream,
-                ),
+                // 手書き図形レイヤー
+                freehandDrawing.getFiguresLayerOptions(),
                 // 手書きの今引いている最中のライン
-                MyPolylineLayerOptions(
-                  polylines: _currentStroke,
-                  rebuild: _redrawStrokeStream.stream,
-                ),
+                freehandDrawing.getCurrentStrokeLayerOptions(),
               ],
             ),
           ),
@@ -102,47 +96,16 @@ class _MyHomePageState extends State<MyHomePage>
             child: GestureDetector(
               onPanStart: (details)
               {
-                if(_currnetStrokePoints == null){
-                  final pt = details.localPosition;
-                  final point = _mapController.pointToLatLng(CustomPoint(pt.dx, pt.dy));
-                  _currnetStrokePoints = [ point! ];
-                }
+                freehandDrawing.onStrokeStart(details.localPosition);
               },
               onPanUpdate: (details)
               {
-                if(_currnetStrokePoints != null){
-                  final pt = details.localPosition;
-                  final point = _mapController.pointToLatLng(CustomPoint(pt.dx, pt.dy));
-                  _currnetStrokePoints!.add(point!);
-
-                  var polyline = MyPolyline(
-                    points: _currnetStrokePoints!,
-                    color: Color(0xFFFF0000),
-                    strokeWidth: 4.0,
-                    shouldRepaint: true);
-                  
-                  if(_currentStroke.isEmpty) _currentStroke.add(polyline);
-                  else _currentStroke[0] = polyline;
-                  _redrawStrokeStream.sink.add(null);
-                }
+                freehandDrawing.onStrokeUpdate(details.localPosition);
               },
               onPanEnd: (details)
               {
-                if(_currnetStrokePoints != null){
-                  //!!!!
-                  print("The stroke has ${_currnetStrokePoints!.length} points.");
-                  var polyline = Polyline(
-                    points: _currnetStrokePoints!,
-                    color: Color(0xFF00FF00),
-                    strokeWidth: 4.0);
-                  _polylines.add(polyline);
-                  _redrawPolylineStream.sink.add(null);
-
-                  _currnetStrokePoints = null;
-                }
-                _currentStroke.clear();
-                _redrawStrokeStream.sink.add(null);
-              },
+                freehandDrawing.onStrokeEnd();
+              }
             ),
           ),
         ],
