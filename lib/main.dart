@@ -1,10 +1,22 @@
 //import 'dart:io'; // HttpClient
+import 'dart:async';   // Stream使った再描画、Timer
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
 
-void main()
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
+import 'mypolyline_layer.dart';
+import 'freehand_drawing.dart';
+
+void main() async
 {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 
@@ -33,6 +45,16 @@ class MyHomePage extends StatefulWidget
 
 class _MyHomePageState extends State<MyHomePage>
 {
+  late MapController _mapController = MapController();
+
+  @override
+  void initState()
+  {
+    _mapController = MapController();
+    freehandDrawing = FreehandDrawing(mapController:_mapController);
+  }
+
+
   @override
   Widget build(BuildContext context)
   {
@@ -40,31 +62,67 @@ class _MyHomePageState extends State<MyHomePage>
       appBar: AppBar(
         title: const Text("TatsumaO Research"),
       ),
-      body: Center(
-        child: FlutterMap(
-          options: MapOptions(
-            allowPanningOnScrollingParent: false,
-            interactiveFlags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-            center: LatLng(35.309934, 139.076056),  // 丸太の森P
-            zoom: 16,
-            maxZoom: 18,
+      body: Stack(
+        children: [
+          // 地図
+          Center(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                allowPanningOnScrollingParent: false,
+                interactiveFlags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                center: LatLng(35.309934, 139.076056),  // 丸太の森P
+                zoom: 16,
+                maxZoom: 18,
+                onTap: onTap,
+                plugins: [
+                  MyPolylineLayerPlugin(),
+                ],
+              ),
+              nonRotatedLayers: [
+                // 高さ陰影図
+                TileLayerOptions(
+                  urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png",
+                  tileProvider: MyTileProvider(headers: {'User-Agent': 'flutter_map (unknown)'}),
+                  maxNativeZoom: 16,
+                ),
+                // 標準地図
+                TileLayerOptions(
+                  urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+                  opacity: 0.64
+                ),
+                // 手書き図形レイヤー
+                freehandDrawing.getFiguresLayerOptions(),
+                // 手書きの今引いている最中のライン
+                freehandDrawing.getCurrentStrokeLayerOptions(),
+              ],
+            ),
           ),
-          nonRotatedLayers: [
-            // 高さ陰影図
-            TileLayerOptions(
-              urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png",
-              tileProvider: MyTileProvider(headers: {'User-Agent': 'flutter_map (unknown)'}),
-              maxNativeZoom: 16,
+          // 手書き
+          Container(
+            child: GestureDetector(
+              onPanStart: (details)
+              {
+                freehandDrawing.onStrokeStart(details.localPosition);
+              },
+              onPanUpdate: (details)
+              {
+                freehandDrawing.onStrokeUpdate(details.localPosition);
+              },
+              onPanEnd: (details)
+              {
+                freehandDrawing.onStrokeEnd();
+              }
             ),
-            // 標準地図
-            TileLayerOptions(
-              urlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
-              opacity: 0.64
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  void onTap(TapPosition tapPosition, LatLng point)
+  {
+    print("onTap() !!!!");
   }
 }
 
