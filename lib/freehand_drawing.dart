@@ -33,7 +33,8 @@ class FreehandDrawing
 
   // 今引いている最中のストローク
   List<MyPolyline> _currentStroke = [];
-  List<LatLng>? _currnetStrokePoints;
+  List<LatLng>? _currnetStrokeLatLng;
+  List<Offset>? _currnetStrokePoints;
   // 今引いている最中のストロークの再描画
   var _redrawStrokeStream = StreamController<void>.broadcast();
 
@@ -56,9 +57,10 @@ class FreehandDrawing
   // ストローク開始
   void onStrokeStart(Offset pt)
   {
-    if(_currnetStrokePoints == null){
+    if(_currnetStrokeLatLng == null){
       final point = _mapController.pointToLatLng(CustomPoint(pt.dx, pt.dy));
-      _currnetStrokePoints = [ point! ];
+      _currnetStrokePoints = [ pt ];
+      _currnetStrokeLatLng = [ point! ];
 
       // 最後の図形にこのストロークを追加できるか？
       if(_figures.isNotEmpty){
@@ -72,12 +74,13 @@ class FreehandDrawing
   // ストロークの継続
   void onStrokeUpdate(Offset pt)
   {
-    if(_currnetStrokePoints != null){
+    if(_currnetStrokeLatLng != null){
       final point = _mapController.pointToLatLng(CustomPoint(pt.dx, pt.dy));
-      _currnetStrokePoints!.add(point!);
+      _currnetStrokePoints!.add(pt);
+      _currnetStrokeLatLng!.add(point!);
 
       var polyline = MyPolyline(
-        points: _currnetStrokePoints!,
+        points: _currnetStrokeLatLng!,
         color: Color.fromARGB(255, 0, 255, 0),
         strokeWidth: 4.0,
         shouldRepaint: true);
@@ -91,14 +94,24 @@ class FreehandDrawing
   // ストロークの完了
   void onStrokeEnd()
   {
-    if(_currnetStrokePoints != null){
+    if(_currnetStrokeLatLng != null){
+      // リダクションをかける
+      List<Offset> pts = reducePolyline(_currnetStrokePoints!);
       //!!!!
-      print("The stroke has ${_currnetStrokePoints!.length} points.");
+      print("The stroke has ${_currnetStrokePoints!.length} -> ${pts.length} points.");
+
+      // LatLng に変換し直してポリラインを作成
+      List<LatLng> latlngs = [];
+      pts.forEach((pt){
+        final latlng = _mapController.pointToLatLng(CustomPoint(pt.dx, pt.dy));
+        latlngs.add(latlng!);
+      });
       var polyline = MyPolyline(
-        points: _currnetStrokePoints!,
+        points: latlngs,
         color: Color.fromARGB(255, 0, 255, 0),
         strokeWidth: 4.0,
         shouldRepaint: true);
+      _currnetStrokeLatLng = null;
       _currnetStrokePoints = null;
 
       // 最後の図形に追加するか、新規図形を作成するか
@@ -276,4 +289,95 @@ enum FigureState {
   WaitStroke, // 次のストロークの完了を待っている
   Close,      // 次のストロークの追加は終了した期間(フェードアウトまでの待ち)
   FadeOut,    // フェードアウト中
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// ポリラインのリダクション
+List<Offset> reducePolyline(List<Offset> points)
+{
+  // ポイントが2点以下ならそのまま戻す。
+  final int N = points.length;
+  if(N <= 2) return points;
+
+  // 角として残すポイントのフラグ配列
+  List<bool> corner = List.filled(N, false);
+  corner[0] = corner[N-1] = true;
+
+  // 残す角を探す
+  reducePolylineSub(points, corner, 0, N-1);
+
+  // 角として残ったポイントのみで配列を作って返す
+  List<Offset> res = [];
+  for(int i = 0; i < N; i++){
+    if(corner[i]) res.add(points[i]);
+  }
+
+  return res;
+}
+
+// 再帰処理
+void reducePolylineSub(
+  List<Offset> points, List<bool> corner, int sidx, int tidx)
+{
+  // 始点[sidx]終点[tidx]の間にポイントがなければ、それ以上探索しない
+  if(tidx < sidx+2) return;
+
+  // 始点終点の間で、最も遠いポイントを探す
+  var r = getMaxLength(points, sidx, tidx);
+
+  // それがしきい値より遠ければ、そこを角として残して、その前後に再帰
+  // しきい値 : 2ドット
+  final double th = 2.0;
+  if(th <= r["distance"]){
+    final int index = r["index"];
+    corner[index] = true;
+    // 前半へ
+    reducePolylineSub(points, corner, sidx, index);
+    // 後半へ
+    reducePolylineSub(points, corner, index, tidx);
+  }
+}
+
+//-----------------------------------------------------------------------------
+// エッジから最も遠いポイントを求める
+dynamic getMaxLength(List<Offset> points, int sidx, int tidx)
+{
+  // 始点[sidx]終点[tidx]の間にポイントがなければ始点を返す
+  // NOTE: 呼び出し元で対策済み
+//  if(tidx < sidx+2){
+//    return { "distance":0.0, "index":sidx };
+//  }
+
+  // 最も遠いポイントを求める
+  double maxDistance = 0.0;
+  int maxDistanceIndex = sidx;
+  final double v0d = (points[tidx] - points[sidx]).distance;
+  if(3.0 <= v0d){
+    // 始点[sidx]終点[tidx]の距離がある場合にはエッジとの距離
+    final double v0x = -(points[tidx].dy - points[sidx].dy);
+    final double v0y =  (points[tidx].dx - points[sidx].dx);
+    for(int i = sidx+1; i < tidx; i++){
+      final double v1x = (points[i].dx - points[sidx].dx);
+      final double v1y = (points[i].dy - points[sidx].dy);
+      final double ip = (v0x * v1x) + (v0y * v1y);
+      final double d = (ip / v0d).abs();
+      if(maxDistance <= d){
+        maxDistance = d;
+        maxDistanceIndex = i;
+      }
+    }
+  }else{
+    // 距離が無い場合には中点との距離
+    final Offset p0 = (points[sidx] + points[tidx]) / 2;
+    for(int i = sidx+1; i < tidx; i++){
+      final double d = (points[i] - p0).distance;
+      if(maxDistance <= d){
+        maxDistance = d;
+        maxDistanceIndex = i;
+      }
+    }
+  }
+
+  return { "distance":maxDistance, "index":maxDistanceIndex };
 }
