@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'firebase_options.dart';
 
 import 'mypolyline_layer.dart';
@@ -52,8 +53,17 @@ class _MyHomePageState extends State<MyHomePage>
   {
     _mapController = MapController();
     freehandDrawing = FreehandDrawing(mapController:_mapController);
-  }
 
+    var database = FirebaseDatabase.instance;
+    final String dbPath = "freehand_drawing/figure";
+    final DatabaseReference ref = database.ref(dbPath);
+    var data = {
+      "stroke": 1,
+      "color": 1234,
+      "time": 5678,
+    };
+    ref.set(data);
+  }
 
   @override
   Widget build(BuildContext context)
