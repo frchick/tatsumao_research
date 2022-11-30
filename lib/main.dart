@@ -143,7 +143,7 @@ class MyTileProvider extends TileProvider {
     var y = coords.y.round();
 
     if((zoom == 16) && (x == 58085) && ((25888 <= y) && (y <= 25890))){
-      String path = "map_tiles/xyz/hillshademap/${zoom}/${x}_${y}.png";
+      String path = "assets/map_tiles/xyz/hillshademap/${zoom}/${x}_${y}.png";
       print("path=${path} ****");
       return AssetImage(path);
     }
