@@ -235,6 +235,15 @@ class FreehandDrawing
     try {
       Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
       
+      // 作成が古すぎるデータが来たら、それは多分異常終了で残っているゴミなので削除する
+      final createdTime = DateTime.fromMillisecondsSinceEpoch(data["time"] as int);
+      final Duration d = DateTime.now().difference(createdTime);
+      if(10 < d.inSeconds){
+        print(">FreehandDrawing._onStrokeAdded() Remove an old garbage data.");
+        event.snapshot.ref.remove();
+        return;
+      }
+
       // 自分自身が追加した場合は無視
       if(data["senderId"] == _appInstKey){
         print(">FreehandDrawing._onStrokeAdded() from myself.");
@@ -347,9 +356,9 @@ class Figure
   int _opacity = 0;
 
   // 一塊の図形として連続したストロークと判定する時間
-  var _openDuration = const Duration(seconds: 1);
+  var _openDuration = const Duration(milliseconds: 1500);
   // 図形を表示する時間
-  var _showDuration = const Duration(seconds: 2);
+  var _showDuration = const Duration(milliseconds: 1500);
 
   // 次のストロークを追加可能か試す。
   // 可能ならその状態へ。出来ないなら false を返す。
