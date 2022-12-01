@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
+import 'package:flutter/gestures.dart';  // DragStartBehavior
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -165,9 +166,10 @@ class _MyHomePageState extends State<MyHomePage>
           // 手書き
           Container(
             child: GestureDetector(
+              dragStartBehavior: DragStartBehavior.down,
               onPanStart: (details)
               {
-                freehandDrawing.onStrokeStart(details.localPosition);
+              freehandDrawing.onStrokeStart(details.localPosition);
               },
               onPanUpdate: (details)
               {
