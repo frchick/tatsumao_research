@@ -4,6 +4,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'mypolyline_layer.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 // 手書き図の実装
@@ -21,10 +24,11 @@ class FreehandDrawing
   final MapController _mapController;
 
   // 図形のリスト
-  List<Figure> _figures = [];
+  Map<GlobalKey, Figure> _figures = {};
 
-  // 最後の図形に、今引いているストロークを追加できるか
-  bool _addStrokeToLastFigure = false;
+  // 今引いているストロークを追加する図形
+  // null の場合にはストローク完了時に新しく図形を作成
+  Figure? _addStrokeFigure = null;
 
   // 描画した図形のポリラインの集合
   List<MyPolyline> _polylines = [];
@@ -63,10 +67,14 @@ class FreehandDrawing
       _currnetStrokeLatLng = [ point! ];
 
       // 最後の図形にこのストロークを追加できるか？
-      if(_figures.isNotEmpty){
-        _addStrokeToLastFigure = _figures.last.tryAddNewStroke();
-      }else{
-        _addStrokeToLastFigure = false;
+      _addStrokeFigure = null;
+      for(var figure in _figures.values){
+        if(figure.state == FigureState.Open){
+          if(figure.tryAddNewStroke()){
+            _addStrokeFigure = figure;
+            break;
+          }
+        }
       }
     }
   }
@@ -115,12 +123,12 @@ class FreehandDrawing
       _currnetStrokePoints = null;
 
       // 最後の図形に追加するか、新規図形を作成するか
-      if(!_addStrokeToLastFigure){
-        _figures.add(Figure());
+      if(_addStrokeFigure == null){
+        var key = GlobalKey();
+        _addStrokeFigure = Figure(key:key);
+        _figures[key] = _addStrokeFigure!;
       }
-      _addStrokeToLastFigure = false;
-      Figure figure = _figures.last;
-      figure.addStroke(polyline);
+      _addStrokeFigure!.addStroke(polyline);
       redraw();
     }
     _currentStroke.clear();
@@ -130,7 +138,14 @@ class FreehandDrawing
   // 図形を削除
   void removeFigure(Figure figure)
   {
-    _figures.remove(figure);
+    final int N = _figures.length;
+
+    _figures.remove(figure.key);
+    if(_addStrokeFigure == figure){
+      _addStrokeFigure = null;
+    }
+    //!!!!
+    print(">Remove Figure!!!! ${N} -> ${_figures.length}");
   }
 
   // 再描画
@@ -138,10 +153,10 @@ class FreehandDrawing
   {
     // 現在有効な全ての図形のポリラインを集めて再描画
     _polylines.clear();
-    _figures.forEach((var figure)
+    for(var figure in _figures.values)
     {
       _polylines.addAll(figure.polylines);
-    });
+    }
     _redrawPolylineStream.sink.add(null);
   }
 }
@@ -151,12 +166,26 @@ class FreehandDrawing
 // 手書き図に含まれる、複数のストロークにより構成される、一塊の図形
 class Figure
 {
+  Figure({required GlobalKey key}) :
+    _key = key
+  {
+    //!!!!
+    print(">new Figure(${key.toString()})");
+  }
+
   // 状態
   FigureState _state = FigureState.Open;
+  FigureState get state => _state;
+
+  // 複数ユーザー間で図形を識別するキー
+  final GlobalKey _key;
+  GlobalKey get key => _key;
 
   // この図形に含まれるストローク
   List<MyPolyline> _polylines = [];
   List<MyPolyline> get polylines => _polylines;
+  // この図形に含まれるストロークをデータベースに書き込んだ参照
+  List<DatabaseReference> _polylineRefs = [];
 
   // 一塊の図形として連続したストロークと判定する時間のタイマー
   Timer? _openTimer;
@@ -275,8 +304,6 @@ class Figure
       _fadeAnimTimer?.cancel();
       _fadeAnimTimer = null;
       freehandDrawing.removeFigure(this);
-      //!!!!
-      print(">Remove Figure!!!!");
     }
     // アニメーションのための再描画
     freehandDrawing.redraw();
