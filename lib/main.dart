@@ -51,18 +51,72 @@ class _MyHomePageState extends State<MyHomePage>
   @override
   void initState()
   {
-    _mapController = MapController();
-    freehandDrawing = FreehandDrawing(mapController:_mapController);
+    // このアプリケーションインスタンスを一意に識別するキー
+    final String appInstKey = UniqueKey().toString();
 
+    _mapController = MapController();
+    freehandDrawing = FreehandDrawing(
+      mapController:_mapController,
+      appInstKey: appInstKey);
+
+    //!!!! テスト
+//    testRealtimeDatabase();
+  }
+
+  void testRealtimeDatabase() async
+  {
     var database = FirebaseDatabase.instance;
     final String dbPath = "freehand_drawing/figure";
     final DatabaseReference ref = database.ref(dbPath);
-    var data = {
-      "stroke": 1,
-      "color": 1234,
-      "time": 5678,
-    };
-    ref.set(data);
+    List<DatabaseReference> pushs = [];
+    for(int i = 0; i < 4; i++){
+      final DatabaseReference r = ref.push();
+      var data = {
+        "stroke": i,
+        "color": 1234,
+        "time": 5678,
+      };
+      r.set(data);
+      
+      pushs.add(r);
+      print("${r.key}");
+    }
+    var listen0 = ref.onChildAdded.listen((event){
+      print("onChildAdded > key:${event.snapshot.key} value:${event.snapshot.value}");
+    });
+    var listen1 = ref.onChildChanged.listen((event){
+      print("onChildChanged > key:${event.snapshot.key} value:${event.snapshot.value}");
+    });
+    var listen2 = ref.onChildRemoved.listen((event){
+      print("onChildRemoved > key:${event.snapshot.key} value:${event.snapshot.value}");
+    });
+
+    await new Future.delayed(new Duration(seconds: 2));
+    {
+      final DatabaseReference r = ref.push();
+      var data = {
+        "stroke": 4,
+        "color": 1234,
+        "time": 5678,
+      };
+      r.set(data);
+      
+      pushs.add(r);
+      print("${r.key}");
+    }
+
+    await new Future.delayed(new Duration(seconds: 2));
+    pushs[0].update({
+      "color": 0,
+    });
+
+    await new Future.delayed(new Duration(seconds: 2));
+    pushs[1].remove();
+
+    await new Future.delayed(new Duration(seconds: 2));
+    listen0.cancel();
+    listen1.cancel();
+    listen2.cancel();
   }
 
   @override

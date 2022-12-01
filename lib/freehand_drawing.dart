@@ -17,14 +17,20 @@ late FreehandDrawing freehandDrawing;
 // 手書き図の実装
 class FreehandDrawing
 {
-  FreehandDrawing({required MapController mapController}) :
-    _mapController = mapController
-  {}
+  FreehandDrawing({
+    required MapController mapController,
+    required String appInstKey }) :
+    _mapController = mapController,
+    _appInstKey = appInstKey
+  {
+    //!!!!
+    open("/1");
+  }
 
   final MapController _mapController;
 
   // 図形のリスト
-  Map<GlobalKey, Figure> _figures = {};
+  Map<String, Figure> _figures = {};
 
   // 今引いているストロークを追加する図形
   // null の場合にはストローク完了時に新しく図形を作成
@@ -36,12 +42,13 @@ class FreehandDrawing
   var _redrawPolylineStream = StreamController<void>.broadcast();
 
   // 今引いている最中のストローク
-  List<MyPolyline> _currentStroke = [];
+  List<MyPolyline> _currentStroke = []; // 配列になっているが、実際には先頭要素のみ
   List<LatLng>? _currnetStrokeLatLng;
   List<Offset>? _currnetStrokePoints;
   // 今引いている最中のストロークの再描画
   var _redrawStrokeStream = StreamController<void>.broadcast();
 
+  //---------------------------------------------------------------------------
   // FlutterMap のレイヤー(描画した図形)
   MyPolylineLayerOptions getFiguresLayerOptions()
   {
@@ -124,8 +131,8 @@ class FreehandDrawing
 
       // 最後の図形に追加するか、新規図形を作成するか
       if(_addStrokeFigure == null){
-        var key = GlobalKey();
-        _addStrokeFigure = Figure(key:key);
+        var key = UniqueKey().toString();
+        _addStrokeFigure = Figure(key:key, parent:this);
         _figures[key] = _addStrokeFigure!;
       }
       _addStrokeFigure!.addStroke(polyline);
@@ -159,6 +166,44 @@ class FreehandDrawing
     }
     _redrawPolylineStream.sink.add(null);
   }
+
+  //---------------------------------------------------------------------------
+  // 他ユーザーとのリアルタイム同期
+  DatabaseReference? _databaseRef;
+  DatabaseReference? get databaseRef => _databaseRef;
+
+  // このアプリケーションインスタンスを一意に識別するキー
+  // 手書きの変更通知が、自分自身によるものか、他のユーザーからかを識別
+  late String _appInstKey;
+  String get appInstKey => _appInstKey;
+
+  //---------------------------------------------------------------------------
+  // 配置ファイルを開く
+  void open(String uidPath)
+  {
+    final String dbPath = "assign" + uidPath + "/freehand_drawing";
+    _databaseRef = FirebaseDatabase.instance.ref(dbPath);
+  }
+
+  // 配置ファイルを閉じる
+  void close()
+  {
+    // まだ削除されていない図形をクリアして削除
+    _figures.forEach((key, figure){
+      figure.clear();
+    });
+    _figures.clear();
+    _addStrokeFigure = null;
+    _polylines.clear();
+
+    // 今引いている最中のストロークをクリア
+    _currentStroke.clear();
+    _currnetStrokeLatLng = null;
+    _currnetStrokePoints = null;
+
+    // データベースへの参照をクリア
+    _databaseRef = null;
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -166,20 +211,26 @@ class FreehandDrawing
 // 手書き図に含まれる、複数のストロークにより構成される、一塊の図形
 class Figure
 {
-  Figure({required GlobalKey key}) :
-    _key = key
+  Figure({
+    required String key,
+    required FreehandDrawing parent }) :
+    _key = key,
+    _freehandDrawing = parent
   {
     //!!!!
-    print(">new Figure(${key.toString()})");
+    print(">new Figure(${key})");
   }
+
+  // 親
+  late FreehandDrawing _freehandDrawing;
 
   // 状態
   FigureState _state = FigureState.Open;
   FigureState get state => _state;
 
   // 複数ユーザー間で図形を識別するキー
-  final GlobalKey _key;
-  GlobalKey get key => _key;
+  final String _key;
+  String get key => _key;
 
   // この図形に含まれるストローク
   List<MyPolyline> _polylines = [];
@@ -240,6 +291,9 @@ class Figure
     _openTimer?.cancel();
     _openTimer = Timer(_openDuration, _onOpenTimer);
 
+    // 他のユーザーへストローク追加を同期
+    sentToDatabase(polyline);
+  
     return true;
   }
 
@@ -257,7 +311,7 @@ class Figure
 /*  _polylines.forEach((polyline){
       polyline.color = Color.fromARGB(255, 0, 0, 255);
     });
-    freehandDrawing.redraw();
+    _freehandDrawing.redraw();
 */
     // この図形を表示する期間のタイマーを開始
     print(">FigureState.Open => FigureState.Close");
@@ -282,6 +336,9 @@ class Figure
     _fadeAnimTimer?.cancel();
     _fadeAnimTimer = Timer.periodic(Duration(milliseconds: 125), _onFadeAnimTimer);
     _opacity = 255;
+
+    // データベース上の図形も削除
+    removeToDatabase();
   }
 
   // フェードアウトアニメーション
@@ -303,10 +360,55 @@ class Figure
       // 完全透明になったら削除
       _fadeAnimTimer?.cancel();
       _fadeAnimTimer = null;
-      freehandDrawing.removeFigure(this);
+      _freehandDrawing.removeFigure(this);
     }
     // アニメーションのための再描画
-    freehandDrawing.redraw();
+    _freehandDrawing.redraw();
+  }
+
+  // 内部状態をクリア
+  void clear()
+  {
+    _openTimer?.cancel();
+    _openTimer = null;
+    _showTimer?.cancel();
+    _showTimer = null;
+    _fadeAnimTimer?.cancel();
+    _fadeAnimTimer = null;
+    removeToDatabase();
+  }
+
+  //---------------------------------------------------------------------------
+  // 他ユーザーとのリアルタイム同期
+  void sentToDatabase(MyPolyline polyline)
+  {
+    // 配置ファイルがオープンされていなければ何もしない
+    if(_freehandDrawing.databaseRef == null) return;
+
+    DatabaseReference ref = _freehandDrawing.databaseRef!.push();
+    _polylineRefs.add(ref);
+
+    // ストロークをデータベースに登録
+    List<double> latlngs = [];
+    polyline.points.forEach((pt){
+      latlngs.add(pt.latitude);
+      latlngs.add(pt.longitude);
+    });
+    ref.set({
+      "key": _key,
+      "senderId": _freehandDrawing.appInstKey,
+      "time": ServerValue.timestamp,
+      "points": latlngs,
+    });
+  }
+
+  // データベース上のストロークを消す
+  void removeToDatabase()
+  {
+    _polylineRefs.forEach((ref){
+      ref.remove();
+    });
+    _polylineRefs.clear();
   }
 }
 
