@@ -172,6 +172,11 @@ class FreehandDrawing
   DatabaseReference? _databaseRef;
   DatabaseReference? get databaseRef => _databaseRef;
 
+  // 追加イベント
+  StreamSubscription<DatabaseEvent>? _addListener;
+  // 削除イベント
+  StreamSubscription<DatabaseEvent>? _removeListener;
+
   // このアプリケーションインスタンスを一意に識別するキー
   // 手書きの変更通知が、自分自身によるものか、他のユーザーからかを識別
   late String _appInstKey;
@@ -181,13 +186,32 @@ class FreehandDrawing
   // 配置ファイルを開く
   void open(String uidPath)
   {
+    // データベースの参照ポイント
     final String dbPath = "assign" + uidPath + "/freehand_drawing";
     _databaseRef = FirebaseDatabase.instance.ref(dbPath);
+
+    // 追加削除イベント
+    _addListener?.cancel();
+    _addListener = _databaseRef!.onChildAdded.listen((event){
+      _onStrokeAdded(event);
+    });
+    _removeListener?.cancel();
+    _removeListener = _databaseRef!.onChildRemoved.listen((event){
+      _onStrokeRemoved(event);
+    });
   }
 
   // 配置ファイルを閉じる
   void close()
   {
+    // 追加削除イベントを閉じる
+    _addListener?.cancel();
+    _addListener = null;
+    _removeListener?.cancel();
+    _removeListener = null;
+    // データベースへの参照をクリア
+    _databaseRef = null;
+
     // まだ削除されていない図形をクリアして削除
     _figures.forEach((key, figure){
       figure.clear();
@@ -200,9 +224,78 @@ class FreehandDrawing
     _currentStroke.clear();
     _currnetStrokeLatLng = null;
     _currnetStrokePoints = null;
+  }
 
-    // データベースへの参照をクリア
-    _databaseRef = null;
+  // 追加イベント
+  void _onStrokeAdded(DatabaseEvent event)
+  {
+    //!!!!
+    print(">FreehandDrawing._onStrokeAdded()");
+
+    try {
+      Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
+      
+      // 自分自身が追加した場合は無視
+      if(data["senderId"] == _appInstKey){
+        print(">FreehandDrawing._onStrokeAdded() from myself.");
+        return;
+      }
+
+      // ポリラインを作成して登録
+      MyPolyline? polyline = Figure.makePolyline(data);
+      if(polyline == null){
+        return;
+      }
+
+      // 先行するストロークで作成された図形か？
+      // そうでなければ新規で作成する
+      final String key = data["key"] as String;
+      late Figure figure;
+      if(_figures.containsKey(key)){
+        figure = _figures[key]!;
+      }else{
+        figure = Figure(key:key, parent:this, remote:true);
+        _figures[key] = figure;
+      }
+      figure.addStroke(polyline);
+
+      // 再描画
+      redraw();
+      //!!!!
+      print(">FreehandDrawing._onStrokeAdded() key:${key}");
+    } catch(e) {
+      //!!!!
+      print(">FreehandDrawing._onStrokeAdded() failed!!!!");
+    }
+  }
+
+  // 削除イベント
+  void _onStrokeRemoved(DatabaseEvent event)
+  {
+    //!!!!
+    print(">FreehandDrawing._onStrokeRemoved()");
+
+    try {
+      Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
+      
+      // 自分自身が追加した場合は無視
+      if(data["senderId"] == _appInstKey){
+        print(">FreehandDrawing._onStrokeRemoved() from myself.");
+        return;
+      }
+
+      // フェードアウトさせて消す
+      final String key = data["key"] as String;
+      final bool contains = _figures.containsKey(key);
+      if(contains){
+        _figures[key]!.removeByRemote();
+      }
+      //!!!!
+      print(">FreehandDrawing._onStrokeRemoved() key:${key} contains:${contains?'YES':'NO'}");
+    } catch(e) {
+      //!!!!
+      print(">FreehandDrawing._onStrokeRemoved() failed!!!!");
+    }
   }
 }
 
@@ -213,12 +306,18 @@ class Figure
 {
   Figure({
     required String key,
-    required FreehandDrawing parent }) :
+    required FreehandDrawing parent,
+    bool remote = false }) :
     _key = key,
     _freehandDrawing = parent
   {
     //!!!!
-    print(">new Figure(${key})");
+    print(">new Figure(${key}, remote:${remote})");
+
+    // 他のユーザーが作成したストロークの図形の場合
+    if(remote){
+      _state = FigureState.RemoteOpen;
+    }
   }
 
   // 親
@@ -278,22 +377,26 @@ class Figure
     //!!!!
     print(">addStroke(${_state.toString()})");
 
-    // 図形の新規作成(Open)か、連続したストロークの追加(WaitStroke)のみ
+    // 図形の新規作成(Open/RemoteOpen)か、連続したストロークの追加(WaitStroke)のみ
+    final bool removeByRemote = (_state == FigureState.RemoteOpen);
     final bool ok = (_state == FigureState.Open) ||
-                    (_state == FigureState.WaitStroke);
+                    (_state == FigureState.WaitStroke) || 
+                    removeByRemote;
     if(!ok) return false;
 
     // ストロークを追加
     _polylines.add(polyline);
-    // 連続ストローク判定のタイマーを開始
-    print(">${_state.toString()} => FigureState.Open");
-    _state = FigureState.Open;
-    _openTimer?.cancel();
-    _openTimer = Timer(_openDuration, _onOpenTimer);
+    if(!removeByRemote){
+      // 連続ストローク判定のタイマーを開始
+      print(">${_state.toString()} => FigureState.Open");
+      _state = FigureState.Open;
+      _openTimer?.cancel();
+      _openTimer = Timer(_openDuration, _onOpenTimer);
 
-    // 他のユーザーへストローク追加を同期
-    sentToDatabase(polyline);
-  
+      // 他のユーザーへストローク追加を同期
+      sentToDatabase(polyline);
+    }
+
     return true;
   }
 
@@ -327,18 +430,24 @@ class Figure
     print(">_onShowTimer(${_state.toString()})");
 
     _showTimer = null;
+
     // 異常な状態遷移は無視
-    if(_state != FigureState.Close) return;
+    final bool removeByRemote = (_state == FigureState.RemoteOpen);
+    if((_state != FigureState.Close) && !removeByRemote){
+      return;
+    }
 
     // フェードアウトアニメーションを開始
-    print(">FigureState.Close => FigureState.FadeOut");
+    print(">${_state.toString()} => FigureState.FadeOut");
     _state = FigureState.FadeOut;
     _fadeAnimTimer?.cancel();
     _fadeAnimTimer = Timer.periodic(Duration(milliseconds: 125), _onFadeAnimTimer);
     _opacity = 255;
 
     // データベース上の図形も削除
-    removeToDatabase();
+    if(!removeByRemote){
+      removeToDatabase();
+    }
   }
 
   // フェードアウトアニメーション
@@ -410,6 +519,38 @@ class Figure
     });
     _polylineRefs.clear();
   }
+
+  // データベース経由で削除
+  void removeByRemote()
+  {
+    // フェードアウトの削除シーケンス開始
+    _onShowTimer();
+  }
+
+  // 同期データからポリラインを作成
+  static MyPolyline? makePolyline(Map<String,dynamic> data)
+  {
+    MyPolyline? polyline;
+    try {
+      // 座標を LatLng 配列に変換
+      List<dynamic> points = data["points"] as List<dynamic>;
+      List<LatLng> latlngs = [];
+      for(int i = 0; i < points.length; i += 2){
+        latlngs.add(LatLng(
+          points[i] as double, points[i+1] as double));
+      }
+      // ポリライン作成
+      polyline = MyPolyline(
+        points: latlngs,
+        color: Color.fromARGB(255, 0, 255, 0),
+        strokeWidth: 4.0,
+        shouldRepaint: true);
+    } catch(e) {
+      //!!!!
+      print(">Figure.makePolyline() failed!!!!");
+    }
+    return polyline;
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -418,6 +559,8 @@ enum FigureState {
   WaitStroke, // 次のストロークの完了を待っている
   Close,      // 次のストロークの追加は終了した期間(フェードアウトまでの待ち)
   FadeOut,    // フェードアウト中
+
+  RemoteOpen, // 他のユーザーが作成したリモート図形として
 }
 
 //-----------------------------------------------------------------------------
