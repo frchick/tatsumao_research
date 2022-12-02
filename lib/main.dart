@@ -49,6 +49,9 @@ class _MyHomePageState extends State<MyHomePage>
 {
   late MapController _mapController = MapController();
 
+  // 手書き有効/無効スイッチ
+  bool _freehandDrawingActive = false;
+
   @override
   void initState()
   {
@@ -139,7 +142,6 @@ class _MyHomePageState extends State<MyHomePage>
                 center: LatLng(35.309934, 139.076056),  // 丸太の森P
                 zoom: 16,
                 maxZoom: 18,
-                onTap: onTap,
                 plugins: [
                   MyPolylineLayerPlugin(),
                 ],
@@ -163,8 +165,32 @@ class _MyHomePageState extends State<MyHomePage>
               ],
             ),
           ),
+
+          // 手書き有効/無効ボタン
+          Align(
+            //Colors.transparent,
+            // 画面右下に配置
+            alignment: const Alignment(1.0, 1.0),
+            child: ElevatedButton(
+              child: const Icon(Icons.border_color, size: 55),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.orange.shade900,
+                backgroundColor: _freehandDrawingActive? Colors.white: Colors.transparent,
+                shadowColor: Colors.transparent,
+                fixedSize: Size(80,80),
+                padding: EdgeInsets.fromLTRB(0,0,0,20),
+                shape: const CircleBorder(),
+              ),
+              onPressed: ()
+              {
+                setState((){ _freehandDrawingActive = !_freehandDrawingActive; });
+              },
+            ),
+          ),
+
           // 手書き
-          Container(
+          Offstage(
+            offstage: !_freehandDrawingActive,
             child: GestureDetector(
               dragStartBehavior: DragStartBehavior.down,
               onPanStart: (details)
@@ -184,11 +210,6 @@ class _MyHomePageState extends State<MyHomePage>
         ],
       ),
     );
-  }
-
-  void onTap(TapPosition tapPosition, LatLng point)
-  {
-    print("onTap() !!!!");
   }
 }
 
