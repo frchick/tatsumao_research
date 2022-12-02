@@ -37,6 +37,7 @@ class MyApp extends StatelessWidget
   }
 }
 
+//-----------------------------------------------------------------------------
 class MyHomePage extends StatefulWidget
 {
   const MyHomePage({super.key});
@@ -48,9 +49,6 @@ class MyHomePage extends StatefulWidget
 class _MyHomePageState extends State<MyHomePage>
 {
   late MapController _mapController = MapController();
-
-  // 手書き有効/無効スイッチ
-  bool _freehandDrawingActive = false;
 
   @override
   void initState()
@@ -126,6 +124,9 @@ class _MyHomePageState extends State<MyHomePage>
   @override
   Widget build(BuildContext context)
   {
+    //!!!!
+    print(">MyHomePage.build() !!!!");
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("TatsumaO Research"),
@@ -166,53 +167,86 @@ class _MyHomePageState extends State<MyHomePage>
             ),
           ),
 
-          // 手書き有効/無効ボタン
-          Align(
-            //Colors.transparent,
-            // 画面右下に配置
-            alignment: const Alignment(1.0, 1.0),
-            child: ElevatedButton(
-              child: const Icon(Icons.border_color, size: 55),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.orange.shade900,
-                backgroundColor: _freehandDrawingActive? Colors.white: Colors.transparent,
-                shadowColor: Colors.transparent,
-                fixedSize: Size(80,80),
-                padding: EdgeInsets.fromLTRB(0,0,0,20),
-                shape: const CircleBorder(),
-              ),
-              onPressed: ()
-              {
-                setState((){ _freehandDrawingActive = !_freehandDrawingActive; });
-              },
-            ),
-          ),
-
-          // 手書き
-          Offstage(
-            offstage: !_freehandDrawingActive,
-            child: GestureDetector(
-              dragStartBehavior: DragStartBehavior.down,
-              onPanStart: (details)
-              {
-              freehandDrawing.onStrokeStart(details.localPosition);
-              },
-              onPanUpdate: (details)
-              {
-                freehandDrawing.onStrokeUpdate(details.localPosition);
-              },
-              onPanEnd: (details)
-              {
-                freehandDrawing.onStrokeEnd();
-              }
-            ),
-          ),
+          // 手書き図
+          FreehandDrawingOnMap(),
         ],
       ),
     );
   }
 }
 
+//-----------------------------------------------------------------------------
+class FreehandDrawingOnMap extends StatefulWidget
+{
+  const FreehandDrawingOnMap({super.key});
+
+  @override
+  State<FreehandDrawingOnMap> createState() => _FreehandDrawingOnMapState();
+}
+
+class _FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
+{
+  // 手書き有効/無効スイッチ
+  bool _freehandDrawingActive = false;
+
+  @override
+  void initState()
+  {
+  }
+
+  @override
+  Widget build(BuildContext context)
+  {
+    //!!!!
+    print(">FreehandDrawingOnMap.build() !!!!");
+
+    return Stack(
+      children: [
+        // 手書き有効/無効ボタン
+        Align(
+          // 画面右下に配置
+          alignment: const Alignment(1.0, 1.0),
+          child: ElevatedButton(
+            child: const Icon(Icons.border_color, size: 55),
+            style: ElevatedButton.styleFrom(
+              foregroundColor: Colors.orange.shade900,
+              backgroundColor: _freehandDrawingActive? Colors.white: Colors.transparent,
+              shadowColor: Colors.transparent,
+              fixedSize: const Size(80,80),
+              padding: const EdgeInsets.fromLTRB(0,0,0,20),
+              shape: const CircleBorder(),
+            ),
+            onPressed: ()
+            {
+              // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
+              // FlutterMap 含む MyHomePage は build されない
+              setState((){ _freehandDrawingActive = !_freehandDrawingActive; });
+            },
+          ),
+        ),
+
+        // 手書きジェスチャー
+        if(_freehandDrawingActive) GestureDetector(
+          dragStartBehavior: DragStartBehavior.down,
+          onPanStart: (details)
+          {
+          freehandDrawing.onStrokeStart(details.localPosition);
+          },
+          onPanUpdate: (details)
+          {
+            freehandDrawing.onStrokeUpdate(details.localPosition);
+          },
+          onPanEnd: (details)
+          {
+            freehandDrawing.onStrokeEnd();
+          }
+        ),
+      ],
+    );
+  }
+}
+
+//-----------------------------------------------------------------------------
 // NetworkNoRetryTileProvider のカスタム(WEB専用)
 class MyTileProvider extends TileProvider {
   MyTileProvider({
