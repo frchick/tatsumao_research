@@ -48,6 +48,10 @@ class FreehandDrawing
   // 今引いている最中のストロークの再描画
   var _redrawStrokeStream = StreamController<void>.broadcast();
 
+  // カラー
+  Color _color = Colors.orange.shade700;
+  void setColor(Color color){ _color = color; }
+
   //---------------------------------------------------------------------------
   // FlutterMap のレイヤー(描画した図形)
   MyPolylineLayerOptions getFiguresLayerOptions()
@@ -96,7 +100,7 @@ class FreehandDrawing
 
       var polyline = MyPolyline(
         points: _currnetStrokeLatLng!,
-        color: Color.fromARGB(255, 0, 255, 0),
+        color: _color,
         strokeWidth: 4.0,
         shouldRepaint: true);
       
@@ -123,7 +127,7 @@ class FreehandDrawing
       });
       var polyline = MyPolyline(
         points: latlngs,
-        color: Color.fromARGB(255, 0, 255, 0),
+        color: _color,
         strokeWidth: 4.0,
         shouldRepaint: true);
       _currnetStrokeLatLng = null;
@@ -472,7 +476,7 @@ class Figure
     if(0 < _opacity){
       // 透明度を変更
       _polylines.forEach((polyline){
-        polyline.color = Color.fromARGB(_opacity, 0, 255, 0);
+        polyline.color = polyline.color.withAlpha(_opacity);
       });
     }else{
       // 完全透明になったら削除
@@ -516,6 +520,7 @@ class Figure
       "key": _key,
       "senderId": _freehandDrawing.appInstKey,
       "time": ServerValue.timestamp,
+      "color": polyline.color.value,
       "points": latlngs,
     });
   }
@@ -549,9 +554,10 @@ class Figure
           points[i] as double, points[i+1] as double));
       }
       // ポリライン作成
+      var color = Color(data["color"] as int);
       polyline = MyPolyline(
         points: latlngs,
-        color: Color.fromARGB(255, 0, 255, 0),
+        color: color,
         strokeWidth: 4.0,
         shouldRepaint: true);
     } catch(e) {
