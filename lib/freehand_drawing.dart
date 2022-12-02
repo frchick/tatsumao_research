@@ -1,5 +1,6 @@
 import 'dart:async';   // Stream使った再描画、Timer
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';  // DragStartBehavior
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'mypolyline_layer.dart';
@@ -23,8 +24,6 @@ class FreehandDrawing
     _mapController = mapController,
     _appInstKey = appInstKey
   {
-    //!!!!
-    open("/1");
   }
 
   final MapController _mapController;
@@ -47,6 +46,10 @@ class FreehandDrawing
   List<Offset>? _currnetStrokePoints;
   // 今引いている最中のストロークの再描画
   var _redrawStrokeStream = StreamController<void>.broadcast();
+
+  // カラー
+  Color _color = Colors.orange.shade700;
+  void setColor(Color color){ _color = color; }
 
   //---------------------------------------------------------------------------
   // FlutterMap のレイヤー(描画した図形)
@@ -96,7 +99,7 @@ class FreehandDrawing
 
       var polyline = MyPolyline(
         points: _currnetStrokeLatLng!,
-        color: Color.fromARGB(255, 0, 255, 0),
+        color: _color,
         strokeWidth: 4.0,
         shouldRepaint: true);
       
@@ -123,7 +126,7 @@ class FreehandDrawing
       });
       var polyline = MyPolyline(
         points: latlngs,
-        color: Color.fromARGB(255, 0, 255, 0),
+        color: _color,
         strokeWidth: 4.0,
         shouldRepaint: true);
       _currnetStrokeLatLng = null;
@@ -472,7 +475,7 @@ class Figure
     if(0 < _opacity){
       // 透明度を変更
       _polylines.forEach((polyline){
-        polyline.color = Color.fromARGB(_opacity, 0, 255, 0);
+        polyline.color = polyline.color.withAlpha(_opacity);
       });
     }else{
       // 完全透明になったら削除
@@ -516,6 +519,7 @@ class Figure
       "key": _key,
       "senderId": _freehandDrawing.appInstKey,
       "time": ServerValue.timestamp,
+      "color": polyline.color.value,
       "points": latlngs,
     });
   }
@@ -549,9 +553,10 @@ class Figure
           points[i] as double, points[i+1] as double));
       }
       // ポリライン作成
+      var color = Color(data["color"] as int);
       polyline = MyPolyline(
         points: latlngs,
-        color: Color.fromARGB(255, 0, 255, 0),
+        color: color,
         strokeWidth: 4.0,
         shouldRepaint: true);
     } catch(e) {
@@ -661,4 +666,80 @@ dynamic getMaxLength(List<Offset> points, int sidx, int tidx)
   }
 
   return { "distance":maxDistance, "index":maxDistanceIndex };
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// アプリへの組み込み
+class FreehandDrawingOnMap extends StatefulWidget
+{
+  const FreehandDrawingOnMap({super.key});
+
+  @override
+  State<FreehandDrawingOnMap> createState() => _FreehandDrawingOnMapState();
+}
+
+class _FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
+{
+  // 手書き有効/無効スイッチ
+  bool _dawingActive = false;
+
+  @override
+  void initState()
+  {
+  }
+
+  @override
+  Widget build(BuildContext context)
+  {
+    //!!!!
+    print(">FreehandDrawingOnMap.build() !!!!");
+
+    return Stack(
+      children: [
+        // 手書き有効/無効ボタン
+        Align(
+          // 画面右下に配置
+          alignment: const Alignment(1.0, 1.0),
+          child: FractionalTranslation(
+            translation: const Offset(0, -1),
+            child: TextButton(
+              child: const Icon(Icons.border_color, size: 55),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange.shade900,
+                backgroundColor: _dawingActive? Colors.white: Colors.transparent,
+                shadowColor: Colors.transparent,
+                fixedSize: const Size(80,80),
+                padding: const EdgeInsets.fromLTRB(0,0,0,20),
+                shape: const CircleBorder(),
+              ),
+              onPressed: ()
+              {
+                // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
+                // FlutterMap 含む MyHomePage は build されない
+                setState((){ _dawingActive = !_dawingActive; });
+              },
+            ),
+          ),
+        ),
+
+        // 手書きジェスチャー
+        if(_dawingActive) GestureDetector(
+          dragStartBehavior: DragStartBehavior.down,
+          onPanStart: (details)
+          {
+            freehandDrawing.onStrokeStart(details.localPosition);
+          },
+          onPanUpdate: (details)
+          {
+            freehandDrawing.onStrokeUpdate(details.localPosition);
+          },
+          onPanEnd: (details)
+          {
+            freehandDrawing.onStrokeEnd();
+          }
+        ),
+      ],
+    );
+  }
 }

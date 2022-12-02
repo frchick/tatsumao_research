@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
-import 'package:flutter/gestures.dart';  // DragStartBehavior
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -37,6 +36,7 @@ class MyApp extends StatelessWidget
   }
 }
 
+//-----------------------------------------------------------------------------
 class MyHomePage extends StatefulWidget
 {
   const MyHomePage({super.key});
@@ -59,6 +59,7 @@ class _MyHomePageState extends State<MyHomePage>
     freehandDrawing = FreehandDrawing(
       mapController:_mapController,
       appInstKey: appInstKey);
+    freehandDrawing.open("/1");
 
     //!!!! テスト
 //    testRealtimeDatabase();
@@ -123,6 +124,9 @@ class _MyHomePageState extends State<MyHomePage>
   @override
   Widget build(BuildContext context)
   {
+    //!!!!
+    print(">MyHomePage.build() !!!!");
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("TatsumaO Research"),
@@ -139,7 +143,6 @@ class _MyHomePageState extends State<MyHomePage>
                 center: LatLng(35.309934, 139.076056),  // 丸太の森P
                 zoom: 16,
                 maxZoom: 18,
-                onTap: onTap,
                 plugins: [
                   MyPolylineLayerPlugin(),
                 ],
@@ -163,35 +166,16 @@ class _MyHomePageState extends State<MyHomePage>
               ],
             ),
           ),
-          // 手書き
-          Container(
-            child: GestureDetector(
-              dragStartBehavior: DragStartBehavior.down,
-              onPanStart: (details)
-              {
-              freehandDrawing.onStrokeStart(details.localPosition);
-              },
-              onPanUpdate: (details)
-              {
-                freehandDrawing.onStrokeUpdate(details.localPosition);
-              },
-              onPanEnd: (details)
-              {
-                freehandDrawing.onStrokeEnd();
-              }
-            ),
-          ),
+
+          // 手書き図
+          FreehandDrawingOnMap(),
         ],
       ),
     );
   }
-
-  void onTap(TapPosition tapPosition, LatLng point)
-  {
-    print("onTap() !!!!");
-  }
 }
 
+//-----------------------------------------------------------------------------
 // NetworkNoRetryTileProvider のカスタム(WEB専用)
 class MyTileProvider extends TileProvider {
   MyTileProvider({
