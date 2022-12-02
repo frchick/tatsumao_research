@@ -1,5 +1,6 @@
 import 'dart:async';   // Stream使った再描画、Timer
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';  // DragStartBehavior
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'mypolyline_layer.dart';
@@ -23,8 +24,6 @@ class FreehandDrawing
     _mapController = mapController,
     _appInstKey = appInstKey
   {
-    //!!!!
-    open("/1");
   }
 
   final MapController _mapController;
@@ -667,4 +666,80 @@ dynamic getMaxLength(List<Offset> points, int sidx, int tidx)
   }
 
   return { "distance":maxDistance, "index":maxDistanceIndex };
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// アプリへの組み込み
+class FreehandDrawingOnMap extends StatefulWidget
+{
+  const FreehandDrawingOnMap({super.key});
+
+  @override
+  State<FreehandDrawingOnMap> createState() => _FreehandDrawingOnMapState();
+}
+
+class _FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
+{
+  // 手書き有効/無効スイッチ
+  bool _dawingActive = false;
+
+  @override
+  void initState()
+  {
+  }
+
+  @override
+  Widget build(BuildContext context)
+  {
+    //!!!!
+    print(">FreehandDrawingOnMap.build() !!!!");
+
+    return Stack(
+      children: [
+        // 手書き有効/無効ボタン
+        Align(
+          // 画面右下に配置
+          alignment: const Alignment(1.0, 1.0),
+          child: FractionalTranslation(
+            translation: const Offset(0, -1),
+            child: TextButton(
+              child: const Icon(Icons.border_color, size: 55),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange.shade900,
+                backgroundColor: _dawingActive? Colors.white: Colors.transparent,
+                shadowColor: Colors.transparent,
+                fixedSize: const Size(80,80),
+                padding: const EdgeInsets.fromLTRB(0,0,0,20),
+                shape: const CircleBorder(),
+              ),
+              onPressed: ()
+              {
+                // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
+                // FlutterMap 含む MyHomePage は build されない
+                setState((){ _dawingActive = !_dawingActive; });
+              },
+            ),
+          ),
+        ),
+
+        // 手書きジェスチャー
+        if(_dawingActive) GestureDetector(
+          dragStartBehavior: DragStartBehavior.down,
+          onPanStart: (details)
+          {
+            freehandDrawing.onStrokeStart(details.localPosition);
+          },
+          onPanUpdate: (details)
+          {
+            freehandDrawing.onStrokeUpdate(details.localPosition);
+          },
+          onPanEnd: (details)
+          {
+            freehandDrawing.onStrokeEnd();
+          }
+        ),
+      ],
+    );
+  }
 }

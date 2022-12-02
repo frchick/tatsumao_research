@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
-import 'package:flutter/gestures.dart';  // DragStartBehavior
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -60,6 +59,7 @@ class _MyHomePageState extends State<MyHomePage>
     freehandDrawing = FreehandDrawing(
       mapController:_mapController,
       appInstKey: appInstKey);
+    freehandDrawing.open("/1");
 
     //!!!! テスト
 //    testRealtimeDatabase();
@@ -171,80 +171,6 @@ class _MyHomePageState extends State<MyHomePage>
           FreehandDrawingOnMap(),
         ],
       ),
-    );
-  }
-}
-
-//-----------------------------------------------------------------------------
-class FreehandDrawingOnMap extends StatefulWidget
-{
-  const FreehandDrawingOnMap({super.key});
-
-  @override
-  State<FreehandDrawingOnMap> createState() => _FreehandDrawingOnMapState();
-}
-
-class _FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
-{
-  // 手書き有効/無効スイッチ
-  bool _freehandDrawingActive = false;
-
-  @override
-  void initState()
-  {
-  }
-
-  @override
-  Widget build(BuildContext context)
-  {
-    //!!!!
-    print(">FreehandDrawingOnMap.build() !!!!");
-
-    return Stack(
-      children: [
-        // 手書き有効/無効ボタン
-        Align(
-          // 画面右下に配置
-          alignment: const Alignment(1.0, 1.0),
-          child: FractionalTranslation(
-            translation: const Offset(0, -1),
-            child: ElevatedButton(
-              child: const Icon(Icons.border_color, size: 55),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.orange.shade900,
-                backgroundColor: _freehandDrawingActive? Colors.white: Colors.transparent,
-                shadowColor: Colors.transparent,
-                fixedSize: const Size(80,80),
-                padding: const EdgeInsets.fromLTRB(0,0,0,20),
-                shape: const CircleBorder(),
-              ),
-              onPressed: ()
-              {
-                // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
-                // FlutterMap 含む MyHomePage は build されない
-                setState((){ _freehandDrawingActive = !_freehandDrawingActive; });
-              },
-            ),
-          ),
-        ),
-
-        // 手書きジェスチャー
-        if(_freehandDrawingActive) GestureDetector(
-          dragStartBehavior: DragStartBehavior.down,
-          onPanStart: (details)
-          {
-            freehandDrawing.onStrokeStart(details.localPosition);
-          },
-          onPanUpdate: (details)
-          {
-            freehandDrawing.onStrokeUpdate(details.localPosition);
-          },
-          onPanEnd: (details)
-          {
-            freehandDrawing.onStrokeEnd();
-          }
-        ),
-      ],
     );
   }
 }
