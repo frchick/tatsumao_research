@@ -206,22 +206,25 @@ class _FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
         Align(
           // 画面右下に配置
           alignment: const Alignment(1.0, 1.0),
-          child: ElevatedButton(
-            child: const Icon(Icons.border_color, size: 55),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.orange.shade900,
-              backgroundColor: _freehandDrawingActive? Colors.white: Colors.transparent,
-              shadowColor: Colors.transparent,
-              fixedSize: const Size(80,80),
-              padding: const EdgeInsets.fromLTRB(0,0,0,20),
-              shape: const CircleBorder(),
+          child: FractionalTranslation(
+            translation: const Offset(0, -1),
+            child: ElevatedButton(
+              child: const Icon(Icons.border_color, size: 55),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.orange.shade900,
+                backgroundColor: _freehandDrawingActive? Colors.white: Colors.transparent,
+                shadowColor: Colors.transparent,
+                fixedSize: const Size(80,80),
+                padding: const EdgeInsets.fromLTRB(0,0,0,20),
+                shape: const CircleBorder(),
+              ),
+              onPressed: ()
+              {
+                // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
+                // FlutterMap 含む MyHomePage は build されない
+                setState((){ _freehandDrawingActive = !_freehandDrawingActive; });
+              },
             ),
-            onPressed: ()
-            {
-              // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
-              // FlutterMap 含む MyHomePage は build されない
-              setState((){ _freehandDrawingActive = !_freehandDrawingActive; });
-            },
           ),
         ),
 
@@ -230,7 +233,7 @@ class _FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
           dragStartBehavior: DragStartBehavior.down,
           onPanStart: (details)
           {
-          freehandDrawing.onStrokeStart(details.localPosition);
+            freehandDrawing.onStrokeStart(details.localPosition);
           },
           onPanUpdate: (details)
           {
