@@ -744,9 +744,13 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
               {
                 // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
                 // FlutterMap 含む MyHomePage は build されない
-                // カラーパレットは閉じる
-                _colorPaletteWidgetKey.currentState?.close();
-                setState((){ _dawingActive = !_dawingActive; });
+                var colorPalette = _colorPaletteWidgetKey.currentState;
+                if(!(colorPalette?.isExpanded() ?? false)){
+                  setState((){ _dawingActive = !_dawingActive; });
+                }else{
+                  // もしカラーパレットが開いていたら、一旦閉じる
+                  colorPalette?.close();
+                }
               },
               // カラーパレットを展開
               onLongPress: ()
@@ -900,6 +904,13 @@ class _ColorPaletteWidgetState
     if(_menuAnimation.status == AnimationStatus.completed){
       _menuAnimation.reverse();
     }
+  }
+
+  // メニューが開いているか？
+  bool isExpanded()
+  {
+    return (_menuAnimation.status == AnimationStatus.completed) ||
+           (_menuAnimation.status == AnimationStatus.forward);
   }
 }
 
