@@ -167,6 +167,16 @@ class _MyHomePageState extends State<MyHomePage>
             ),
           ),
 
+          //!!!!
+          Align(
+            alignment: const Alignment(1.0, 1.0),
+            child: Container(
+              width:80,
+              height:80,
+              decoration: BoxDecoration(color: Colors.orange.shade900),
+            ),
+          ),
+          
           // 手書き図
           FreehandDrawingOnMap(),
         ],

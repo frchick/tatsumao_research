@@ -696,7 +696,9 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
 
   // カラーパレットへのアクセスキー
   final _colorPaletteWidgetKey = GlobalKey<_ColorPaletteWidgetState>();
-
+  // サブメニューへのアクセスキー
+  final _subMenuWidgetKey = GlobalKey<_SubMenuWidgetState>();
+  
   @override
   void initState()
   {
@@ -710,52 +712,29 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
 
     return Stack(
       children: [
-        // 展開するカラーパレット
-        Align(
-          // 画面右下に配置
-          alignment: const Alignment(1.0, 1.0),
-          child: FractionalTranslation(
-            translation: const Offset(0, -1),
-            child: _ColorPaletteWidget(
-              key: _colorPaletteWidgetKey,
-              onChangeColor: _onChangeColor),
-          ),
+        // 横に展開するカラーパレット
+        _makeOffset(_ColorPaletteWidget(
+          key: _colorPaletteWidgetKey,
+          onChangeColor: _onChangeColor),
         ),
-
-        // 機能ボタン
-        // 手書き有効/無効ボタン
-        Align(
-          // 画面右下に配置
-          alignment: const Alignment(1.0, 1.0),
-          child: FractionalTranslation(
-            translation: const Offset(0, -1),
-            child: TextButton(
-              child: const Icon(Icons.border_color, size: 50),
-              style: TextButton.styleFrom(
-                foregroundColor: freehandDrawing.color,
-                backgroundColor: _dawingActive? Colors.white: Colors.transparent,
-                shadowColor: Colors.transparent,
-                fixedSize: const Size(80,80),
-                padding: const EdgeInsets.fromLTRB(0,0,0,10),
-                shape: const CircleBorder(),
-              ),
-              // 有効/無効切り替え
-              onPressed: ()
-              {
-                // この setState() は FreehandDrawingOnMap の範囲のみ build を実行
-                // FlutterMap 含む MyHomePage は build されない
-                // カラーパレットは閉じる
-                _colorPaletteWidgetKey.currentState?.close();
-                setState((){ _dawingActive = !_dawingActive; });
-              },
-              // カラーパレットを展開
-              onLongPress: ()
-              {
-                _colorPaletteWidgetKey.currentState?.expand();
-              }
-            ),
-          ),
+        _makeOffset(_SubMenuWidget(
+          key: _subMenuWidgetKey),
         ),
+        _makeOffset(TextButton(
+          child: const Icon(Icons.border_color, size: 50),
+          style: TextButton.styleFrom(
+            foregroundColor: freehandDrawing.color,
+            backgroundColor: _dawingActive? Colors.white: Colors.transparent,
+            shadowColor: Colors.transparent,
+            fixedSize: const Size(80,80),
+            padding: const EdgeInsets.fromLTRB(0,0,0,10),
+            shape: const CircleBorder(),
+          ),
+          // 有効/無効切り替え
+          onPressed: () => _onTapDrawingIcon(),
+          // カラーパレットを展開
+          onLongPress: () => _colorPaletteWidgetKey.currentState?.expand(),
+        )),
         
         // 手書きジェスチャー
         if(_dawingActive) GestureDetector(
@@ -777,6 +756,35 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     );
   }
 
+  // 指定した Widget に対して、画面上でのオフセットのための Widget ツリーを付加する
+  Widget _makeOffset(Widget widget)
+  {
+    // 右下寄せ、下に80ドット(ホームアイコン分)のマージン
+    return Align(
+      alignment: Alignment(1.0, 1.0),
+      child: Transform(
+        transform: Matrix4.translationValues(0, -80, 0),
+        child: widget));
+  }
+
+  // 手書き図有効無効アイコンのタップ
+  void _onTapDrawingIcon()
+  {
+    var colorPalette = _colorPaletteWidgetKey.currentState;
+    if(!(colorPalette?.isExpanded() ?? false)){
+      // 有効無効を切り替え、同時にサブメニューの展開、閉じるを制御
+      setState((){ _dawingActive = !_dawingActive; });
+      if(_dawingActive){
+        _subMenuWidgetKey.currentState?.expand();
+      }else{
+        _subMenuWidgetKey.currentState?.close();
+      }
+    }else{
+      // もしカラーパレットが開いていたら、一旦閉じる
+      colorPalette?.close();
+    }
+  }
+
   // カラー変更(UIイベントハンドラ)
   void _onChangeColor(Color color)
   {
@@ -788,11 +796,70 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     setState((){});
   }
 
-  // 手書きを無効化
+  // 手書きを無効化(外部からの制御用関数)
   void disableDrawing()
   {
     _colorPaletteWidgetKey.currentState?.close();
+    _subMenuWidgetKey.currentState?.close();
     setState((){ _dawingActive = false; });
+  }
+}
+
+//-----------------------------------------------------------------------------
+// 手書き図メニュー(上に展開するやつ)
+class _SubMenuWidget extends StatefulWidget
+{
+  const _SubMenuWidget({super.key});
+ 
+  @override
+  State<_SubMenuWidget> createState() => _SubMenuWidgetState();
+}
+
+class _SubMenuWidgetState
+  extends _ExpandMenuState<_SubMenuWidget>
+{
+  @override
+  Widget build(BuildContext context)
+  {
+    //!!!!
+    print(">_SubMenuWidget.build() !!!!");
+  
+    return Offstage(
+      // サブメニューが閉じているときは全体を非表示
+      offstage: (_menuAnimation.status == AnimationStatus.dismissed),
+      // サブメニューアイコンをアニメーション用Widget(Flow)に並べる
+      child: Flow(
+        delegate: _ExpandMenuDelegate(
+          menuAnimation: _menuAnimation,
+          direction: Axis.vertical,
+          numItems: 2,
+          iconSize: 80,
+          margin: 0),
+        children: [
+          TextButton(
+            child: const Icon(Icons.push_pin, size: 50),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.orange.shade900,
+              backgroundColor: /*active? Colors.white: */Colors.transparent,
+              shadowColor: Colors.transparent,
+              fixedSize: const Size(80,80),
+              shape: const CircleBorder(),
+            ),
+            onPressed: (){},
+          ),
+          TextButton(
+            child: const Icon(Icons.backspace, size: 50),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.orange.shade900,
+              shadowColor: Colors.transparent,
+              fixedSize: const Size(80,80),
+              shape: const CircleBorder(),
+            ),
+            onPressed: (){},
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -810,7 +877,62 @@ class _ColorPaletteWidget extends StatefulWidget
 }
 
 class _ColorPaletteWidgetState
-  extends State<_ColorPaletteWidget>
+  extends _ExpandMenuState<_ColorPaletteWidget>
+{
+  @override
+  Widget build(BuildContext context)
+  {
+    //!!!!
+    print(">_ColorPaletteWidget.build() !!!!");
+  
+    return Offstage(
+      // カラーパレットが閉じているときは全体を非表示
+      offstage: (_menuAnimation.status == AnimationStatus.dismissed),
+      // カラーパレットをアニメーション用Widget(Flow)に並べる
+      child: Flow(
+        delegate: _ExpandMenuDelegate(
+          menuAnimation: _menuAnimation,
+          direction: Axis.horizontal,
+          numItems: 5,
+          iconSize: 60,
+          margin: 10),
+        children: [
+          _makeColorPalletButton(_penColorTable[0]),
+          _makeColorPalletButton(_penColorTable[1]),
+          _makeColorPalletButton(_penColorTable[2]),
+          _makeColorPalletButton(_penColorTable[3]),
+          _makeColorPalletButton(_penColorTable[4]),
+        ],
+      ),
+    );
+  }
+ 
+  // カラーパレットの丸ボタン Widget を作成
+  Widget _makeColorPalletButton(Color color)
+  {
+    return TextButton(
+      child: Container(),
+      style: TextButton.styleFrom(
+        backgroundColor: color,
+        shadowColor: Colors.transparent,
+        fixedSize: const Size(60,60),
+        shape: const CircleBorder(side:
+          BorderSide(
+            color: Colors.black,
+            width: 3,
+            style: BorderStyle.solid
+          ),
+        ),
+      ),
+      onPressed: () => widget.onChangeColor(color),
+    );
+  }
+}
+
+//-----------------------------------------------------------------------------
+// 開くアイコンメニューの状態クラスの共通部分
+class _ExpandMenuState<T extends StatefulWidget> 
+  extends State<T>
   with    SingleTickerProviderStateMixin
 {
   late AnimationController _menuAnimation;
@@ -842,47 +964,8 @@ class _ColorPaletteWidgetState
   @override
   Widget build(BuildContext context)
   {
-    //!!!!
-    print(">_ColorPaletteWidget.build() !!!!");
-  
-    return Offstage(
-      // カラーパレットが閉じているときは全体を非表示
-      offstage: (_menuAnimation.status == AnimationStatus.dismissed),
-      // カラーパレットをアニメーション用Widget(Flow)に並べる
-      child: Flow(
-        delegate: ColorPaletteFlowDelegate(
-          menuAnimation: _menuAnimation,
-          numColors: 5),
-        children: [
-          makeColorPalletButton(_penColorTable[0]),
-          makeColorPalletButton(_penColorTable[1]),
-          makeColorPalletButton(_penColorTable[2]),
-          makeColorPalletButton(_penColorTable[3]),
-          makeColorPalletButton(_penColorTable[4]),
-        ],
-      ),
-    );
-  }
- 
-  // カラーパレットの丸ボタン Widget を作成
-  Widget makeColorPalletButton(Color color)
-  {
-    return TextButton(
-      child: Container(),
-      style: TextButton.styleFrom(
-        backgroundColor: color,
-        shadowColor: Colors.transparent,
-        fixedSize: const Size(60,60),
-        shape: const CircleBorder(side:
-          BorderSide(
-            color: Colors.black,
-            width: 3,
-            style: BorderStyle.solid
-          ),
-        ),
-      ),
-      onPressed: () => widget.onChangeColor(color),
-    );
+    // これは派生クラスで上書きする！
+    return Container();
   }
 
   // メニューを開く
@@ -901,16 +984,34 @@ class _ColorPaletteWidgetState
       _menuAnimation.reverse();
     }
   }
+
+  // メニューが開いているか？
+  bool isExpanded()
+  {
+    return (_menuAnimation.status == AnimationStatus.completed) ||
+           (_menuAnimation.status == AnimationStatus.forward);
+  }
 }
 
 //-----------------------------------------------------------------------------
-// カラーパレットの展開アニメーション
-class ColorPaletteFlowDelegate extends FlowDelegate
+// メニューの展開アニメーション
+class _ExpandMenuDelegate extends FlowDelegate
 {
-  ColorPaletteFlowDelegate({
+  _ExpandMenuDelegate({
     required Animation<double> menuAnimation,
-    required this.numColors}) :
-    _totalWidth = _baseOffset + (_margin + _paletteSize) * numColors,
+    required this.direction,
+    required this.numItems,
+    required this.iconSize,
+    required this.margin
+    }) :
+    _totalWidth = 
+      (direction == Axis.horizontal)?
+        _baseOffset + (margin + iconSize) * numItems:
+        _baseOffset,
+    _totalHeight = 
+      (direction == Axis.vertical)?
+        _baseOffset + (margin + iconSize) * numItems:
+        _baseOffset,
     super(repaint: menuAnimation)
   {
     _curveAnimation = CurvedAnimation(
@@ -922,23 +1023,25 @@ class ColorPaletteFlowDelegate extends FlowDelegate
   // 展開アニメーションの時間を制御するやつ
   late Animation<double> _curveAnimation;
 
-  // カラーパレット数
-  final int numColors;
+  // 展開方向(縦/横)
+  final Axis direction;
+
+  // 要素数
+  final int numItems;
 
   // 右端基点のオフセット(機能ボタンのサイズ)
   static const double _baseOffset = 80;
-  // 全体の高さ(機能ボタンのサイズ)
-  static const double _height = 80;
-  // カラーパレットのサイズ
-  static const double _paletteSize = 60;
-  // カラーパレット間のマージン
-  static const double _margin = 10;
+  // 要素アイコンのサイズ
+  final double iconSize;
+  // 要素アイコン間のマージン
+  final double margin;
   // 展開時の全体のサイズ
   final double _totalWidth;
+  final double _totalHeight;
 
   // アニメーションが進んで再描画が必要か判定
   @override
-  bool shouldRepaint(ColorPaletteFlowDelegate oldDelegate)
+  bool shouldRepaint(_ExpandMenuDelegate oldDelegate)
   {
     return _curveAnimation != oldDelegate._curveAnimation;
   }
@@ -948,22 +1051,30 @@ class ColorPaletteFlowDelegate extends FlowDelegate
   @override
   Size getSize(BoxConstraints constraints)
   {
-    return Size(_totalWidth, _height);
+    return Size(_totalWidth, _totalHeight);
   }
 
-  // 移動アニメーションを計算して丸アイコンを描画
+  // 移動アニメーションを計算してアイコンを描画
   @override
   void paintChildren(FlowPaintingContext context)
   {
-    final double stride = (_paletteSize + _margin);
-    final double offset_y = (_height - _paletteSize) / 2;
+    final double stride = (iconSize + margin);
     final double t = _curveAnimation.value;
-    for (int i = 0; i < context.childCount; i++) {
-      final double x = (_totalWidth - _baseOffset) - (stride * (i + 1) * t);
-      context.paintChild(
-        i,
-        transform: Matrix4.translationValues(x, offset_y, 0),
-      );
+    final double alignmentGap = (_baseOffset - iconSize) / 2;
+    if(direction == Axis.horizontal){
+      // 横展開
+      for (int i = 0; i < context.childCount; i++) {
+        final offset_x = (_totalWidth - _baseOffset) - (stride * (i + 1) * t);
+        final mtx = Matrix4.translationValues(offset_x, alignmentGap, 0);
+        context.paintChild(i, transform: mtx);
+      }
+    }else{
+      // 縦展開
+      for (int i = 0; i < context.childCount; i++) {
+        final offset_y = (_totalHeight - _baseOffset) - (stride * (i + 1) * t);
+        final mtx = Matrix4.translationValues(alignmentGap, offset_y, 0);
+        context.paintChild(i, transform: mtx);
+      }
     }
   }
 }
