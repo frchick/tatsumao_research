@@ -61,6 +61,11 @@ class FreehandDrawing
   void setColor(Color color){ _color = color; }
   Color get color => _color;
 
+  // ピン留め
+  bool _pinned = false;
+  void setPinned(bool value){ _pinned = value; }
+  bool get pinned => _pinned;
+
   //---------------------------------------------------------------------------
   // FlutterMap のレイヤー(描画した図形)
   MyPolylineLayerOptions getFiguresLayerOptions()
@@ -718,7 +723,8 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
           onChangeColor: _onChangeColor),
         ),
         _makeOffset(_SubMenuWidget(
-          key: _subMenuWidgetKey),
+          key: _subMenuWidgetKey,
+          onChangePinned: _onChangePinned),
         ),
         _makeOffset(TextButton(
           child: const Icon(Icons.border_color, size: 50),
@@ -773,11 +779,12 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     var colorPalette = _colorPaletteWidgetKey.currentState;
     if(!(colorPalette?.isExpanded() ?? false)){
       // 有効無効を切り替え、同時にサブメニューの展開、閉じるを制御
-      setState((){ _dawingActive = !_dawingActive; });
+      _dawingActive = !_dawingActive;
       if(_dawingActive){
         _subMenuWidgetKey.currentState?.expand();
+        setState((){});
       }else{
-        _subMenuWidgetKey.currentState?.close();
+        disableDrawing();
       }
     }else{
       // もしカラーパレットが開いていたら、一旦閉じる
@@ -796,11 +803,18 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     setState((){});
   }
 
+  // ピン留め変更(UIイベントハンドラ)
+  void _onChangePinned(bool pinned)
+  {
+    freehandDrawing.setPinned(pinned);
+  }
+
   // 手書きを無効化(外部からの制御用関数)
   void disableDrawing()
   {
     _colorPaletteWidgetKey.currentState?.close();
     _subMenuWidgetKey.currentState?.close();
+    freehandDrawing.setPinned(false);
     setState((){ _dawingActive = false; });
   }
 }
@@ -809,8 +823,12 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
 // 手書き図メニュー(上に展開するやつ)
 class _SubMenuWidget extends StatefulWidget
 {
-  const _SubMenuWidget({super.key});
+  const _SubMenuWidget({
+    super.key,
+    required this.onChangePinned});
  
+  final Function(bool) onChangePinned;
+
   @override
   State<_SubMenuWidget> createState() => _SubMenuWidgetState();
 }
@@ -821,8 +839,12 @@ class _SubMenuWidgetState
   @override
   Widget build(BuildContext context)
   {
+    // ピン留めされているか
+    final bool pinned = freehandDrawing.pinned;
+
     //!!!!
     print(">_SubMenuWidget.build() !!!!");
+ 
   
     return Offstage(
       // サブメニューが閉じているときは全体を非表示
@@ -833,26 +855,31 @@ class _SubMenuWidgetState
           menuAnimation: _menuAnimation,
           direction: Axis.vertical,
           numItems: 2,
-          iconSize: 80,
-          margin: 0),
+          iconSize: 60,
+          margin: 10),
         children: [
           TextButton(
             child: const Icon(Icons.push_pin, size: 50),
             style: TextButton.styleFrom(
               foregroundColor: Colors.orange.shade900,
-              backgroundColor: /*active? Colors.white: */Colors.transparent,
+              backgroundColor: (pinned? Colors.white: Colors.transparent),
               shadowColor: Colors.transparent,
-              fixedSize: const Size(80,80),
+              fixedSize: const Size(60,60),
+              padding: const EdgeInsets.fromLTRB(5,5,5,5),
               shape: const CircleBorder(),
             ),
-            onPressed: (){},
+            onPressed: (){
+              widget.onChangePinned(!pinned);
+              setState((){});
+            }
           ),
           TextButton(
             child: const Icon(Icons.backspace, size: 50),
             style: TextButton.styleFrom(
               foregroundColor: Colors.orange.shade900,
               shadowColor: Colors.transparent,
-              fixedSize: const Size(80,80),
+              fixedSize: const Size(60,60),
+              padding: const EdgeInsets.fromLTRB(5,5,5,5),
               shape: const CircleBorder(),
             ),
             onPressed: (){},
