@@ -784,12 +784,13 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
         _makeOffset(_SubMenuWidget(
           key: _subMenuWidgetKey,
           onPushPin: _onPushPin,
-          onDeleteLastPinned: _onDeleteLastPinned),
+          onDeleteLastPinned: _onDeleteLastPinned,
+          colorPaletteWidgetKey: _colorPaletteWidgetKey),
         ),
         _makeOffset(TextButton(
           child: const Icon(Icons.border_color, size: 50),
           style: TextButton.styleFrom(
-            foregroundColor: freehandDrawing.color,
+            foregroundColor: Colors.orange.shade900,
             backgroundColor: _dawingActive? Colors.white: Colors.transparent,
             shadowColor: Colors.transparent,
             fixedSize: const Size(80,80),
@@ -798,8 +799,6 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
           ),
           // 有効/無効切り替え
           onPressed: () => _onTapDrawingIcon(),
-          // カラーパレットを展開
-          onLongPress: () => _colorPaletteWidgetKey.currentState?.expand(),
         )),
         
         // 手書きジェスチャー
@@ -836,19 +835,13 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
   // 手書き図有効無効アイコンのタップ
   void _onTapDrawingIcon()
   {
-    var colorPalette = _colorPaletteWidgetKey.currentState;
-    if(!(colorPalette?.isExpanded() ?? false)){
-      // 有効無効を切り替え、同時にサブメニューの展開、閉じるを制御
-      _dawingActive = !_dawingActive;
-      if(_dawingActive){
-        _subMenuWidgetKey.currentState?.expand();
-        setState((){});
-      }else{
-        disableDrawing();
-      }
+    // 有効無効を切り替え、同時にサブメニューの展開、閉じるを制御
+    _dawingActive = !_dawingActive;
+    if(_dawingActive){
+      _subMenuWidgetKey.currentState?.expand();
+      setState((){});
     }else{
-      // もしカラーパレットが開いていたら、一旦閉じる
-      colorPalette?.close();
+      disableDrawing();
     }
   }
 
@@ -860,7 +853,7 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     _colorPaletteWidgetKey.currentState?.close();
     // カラーを設定し、ペンアイコンの色を変えるために再build
     freehandDrawing.setColor(color);
-    setState((){});
+    _subMenuWidgetKey.currentState?.setState((){});
   }
 
   // ピン留め変更(UIイベントハンドラ)
@@ -891,10 +884,12 @@ class _SubMenuWidget extends StatefulWidget
   const _SubMenuWidget({
     super.key,
     required this.onPushPin,
-    required this.onDeleteLastPinned});
+    required this.onDeleteLastPinned,
+    required this.colorPaletteWidgetKey});
  
   final Function onPushPin;
   final Function onDeleteLastPinned;
+  final GlobalKey<_ColorPaletteWidgetState> colorPaletteWidgetKey;
 
   @override
   State<_SubMenuWidget> createState() => _SubMenuWidgetState();
@@ -921,10 +916,31 @@ class _SubMenuWidgetState
         delegate: _ExpandMenuDelegate(
           menuAnimation: _menuAnimation,
           direction: Axis.vertical,
-          numItems: 2,
+          numItems: 3,
           iconSize: 60,
           margin: 10),
         children: [
+          // カラーパレット
+          TextButton(
+            child: const Icon(Icons.palette, size: 50),
+            style: TextButton.styleFrom(
+              foregroundColor: freehandDrawing.color,
+              shadowColor: Colors.transparent,
+              fixedSize: const Size(60,60),
+              padding: const EdgeInsets.fromLTRB(5,5,5,5),
+              shape: const CircleBorder()
+            ),
+            // カラーパレットを展開/閉じる
+            onPressed: () {
+              var state = widget.colorPaletteWidgetKey.currentState;
+              if(state?.isExpanded() ?? false){
+                state?.close();
+              }else{
+                state?.expand();
+              }
+            }
+          ),
+          // ピン留め
           TextButton(
             child: const Icon(Icons.push_pin, size: 50),
             style: _makeButtonStyle(0),
@@ -933,6 +949,7 @@ class _SubMenuWidgetState
               _flashButton(0);
             }
           ),
+          // ピン留めした図形の削除
           TextButton(
             child: const Icon(Icons.backspace, size: 50),
             style: _makeButtonStyle(1),
@@ -995,6 +1012,7 @@ class _ColorPaletteWidgetState
         delegate: _ExpandMenuDelegate(
           menuAnimation: _menuAnimation,
           direction: Axis.horizontal,
+          crossAxisOffset: 80,
           numItems: 5,
           iconSize: 60,
           margin: 10),
@@ -1104,16 +1122,17 @@ class _ExpandMenuDelegate extends FlowDelegate
     required this.direction,
     required this.numItems,
     required this.iconSize,
-    required this.margin
+    required this.margin,
+    this.crossAxisOffset = 0,
     }) :
     _totalWidth = 
       (direction == Axis.horizontal)?
         _baseOffset + (margin + iconSize) * numItems:
-        _baseOffset,
+        _baseOffset + crossAxisOffset,
     _totalHeight = 
       (direction == Axis.vertical)?
         _baseOffset + (margin + iconSize) * numItems:
-        _baseOffset,
+        _baseOffset + crossAxisOffset,
     super(repaint: menuAnimation)
   {
     _curveAnimation = CurvedAnimation(
@@ -1133,6 +1152,8 @@ class _ExpandMenuDelegate extends FlowDelegate
 
   // 右端基点のオフセット(機能ボタンのサイズ)
   static const double _baseOffset = 80;
+  // 展開方向と直交する方向のオフセット
+  final double crossAxisOffset;
   // 要素アイコンのサイズ
   final double iconSize;
   // 要素アイコン間のマージン
@@ -1165,16 +1186,18 @@ class _ExpandMenuDelegate extends FlowDelegate
     final double alignmentGap = (_baseOffset - iconSize) / 2;
     if(direction == Axis.horizontal){
       // 横展開
+      final double offset_y = _totalHeight - (_baseOffset + crossAxisOffset - alignmentGap);
       for (int i = 0; i < context.childCount; i++) {
         final offset_x = (_totalWidth - _baseOffset) - (stride * (i + 1) * t);
-        final mtx = Matrix4.translationValues(offset_x, alignmentGap, 0);
+        final mtx = Matrix4.translationValues(offset_x, offset_y, 0);
         context.paintChild(i, transform: mtx);
       }
     }else{
       // 縦展開
+      final double offset_x = _totalWidth - (_baseOffset + crossAxisOffset - alignmentGap);
       for (int i = 0; i < context.childCount; i++) {
         final offset_y = (_totalHeight - _baseOffset) - (stride * (i + 1) * t);
-        final mtx = Matrix4.translationValues(alignmentGap, offset_y, 0);
+        final mtx = Matrix4.translationValues(offset_x, offset_y, 0);
         context.paintChild(i, transform: mtx);
       }
     }
