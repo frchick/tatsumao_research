@@ -211,6 +211,22 @@ class FreehandDrawing
     redraw();
   }
 
+  // 他のユーザーが描いたものも含めて、全てのピン留め図形を削除
+  void deleteAllPinned()
+  {
+    // ピン留めされた図形をデータベースとローカルのMapから削除
+    _figures.removeWhere((key, figure){
+      if(figure.pinned){
+        figure.removeToDatabase();
+      }
+      return figure.pinned;
+    });
+    _pinnedFigures.clear();
+
+    // 再描画
+    redraw();
+  }
+
   //---------------------------------------------------------------------------
   // 他ユーザーとのリアルタイム同期
   DatabaseReference? _databaseRef;
@@ -287,7 +303,7 @@ class FreehandDrawing
 
     try {
       Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
-      
+
       // 作成が古すぎるデータが来たら、それは多分異常終了で残っているゴミなので削除する
       // ただしピン留めされている場合を除く
       final createdTime = DateTime.fromMillisecondsSinceEpoch(data["time"] as int);
@@ -305,7 +321,7 @@ class FreehandDrawing
         return;
       }
 
-      // ポリラインを作成して登録
+      // ポリラインを作成
       MyPolyline? polyline = Figure.makePolyline(data);
       if(polyline == null){
         return;
@@ -323,7 +339,8 @@ class FreehandDrawing
         // ピン留めされていたら、そうする。
         if(pinned) figure.pushPinByRemote();
       }
-      figure.addStroke(polyline);
+      // 図形にストロークを追加
+      figure.addStroke(polyline, ref: event.snapshot.ref);
 
       // 再描画
       redraw();
@@ -344,11 +361,8 @@ class FreehandDrawing
     try {
       Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
       
-      // 自分自身が追加した場合は無視
-      if(data["senderId"] == _appInstKey){
-        print(">FreehandDrawing._onStrokeRemoved() from myself.");
-        return;
-      }
+      // 自分自身の削除のイベントかはチェックしない。次の key の有無チェックで安全にスルーできる。
+      final bool myself = (data["senderId"] == _appInstKey);
 
       // 削除
       // ピン留めされている場合とされていない場合で、先の処理が異なる
@@ -360,7 +374,8 @@ class FreehandDrawing
         if(change) redraw();
       }
       //!!!!
-      print(">FreehandDrawing._onStrokeRemoved() key:${key} contains:${contains?'YES':'NO'}");
+      print(">FreehandDrawing._onStrokeRemoved()"
+            " key:${key} contains:${contains?'YES':'NO'} ${myself? 'from myself.': ''}");
     } catch(e) {
       //!!!!
       print(">FreehandDrawing._onStrokeRemoved() failed!!!!");
@@ -472,7 +487,7 @@ class Figure
   }
 
   // ストロークを追加
-  bool addStroke(MyPolyline polyline)
+  bool addStroke(MyPolyline polyline, { DatabaseReference? ref=null })
   {
     //!!!!
     print(">addStroke(${_state.toString()})");
@@ -500,6 +515,11 @@ class Figure
 
       // 他のユーザーへストローク追加を同期
       _sentToDatabase(polyline);
+    }
+
+    // リモート図形の場合は、ストロークへの参照を登録
+    if(remote && (ref != null)){
+      _polylineRefs.add(ref);
     }
 
     return true;
@@ -875,6 +895,7 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
           key: _subMenuWidgetKey,
           onPushPin: _onPushPin,
           onDeleteLastPinned: _onDeleteLastPinned,
+          onDeleteAllPinned: _onDeleteAllPinned,
           colorPaletteWidgetKey: _colorPaletteWidgetKey),
         ),
         _makeOffset(TextButton(
@@ -958,6 +979,12 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     freehandDrawing.deleteLastPinned();
   }
 
+  // 全てのピン留め図形を削除(UIイベントハンドラ)
+  void _onDeleteAllPinned()
+  {
+    freehandDrawing.deleteAllPinned();
+  }
+
   // 手書きを無効化(外部からの制御用関数)
   void disableDrawing()
   {
@@ -975,10 +1002,12 @@ class _SubMenuWidget extends StatefulWidget
     super.key,
     required this.onPushPin,
     required this.onDeleteLastPinned,
+    required this.onDeleteAllPinned,
     required this.colorPaletteWidgetKey});
  
   final Function onPushPin;
   final Function onDeleteLastPinned;
+  final Function onDeleteAllPinned;
   final GlobalKey<_ColorPaletteWidgetState> colorPaletteWidgetKey;
 
   @override
@@ -1045,6 +1074,10 @@ class _SubMenuWidgetState
             style: _makeButtonStyle(1),
             onPressed: () {
               widget.onDeleteLastPinned();
+              _flashButton(1);
+            },
+            onLongPress: () {
+              widget.onDeleteAllPinned();
               _flashButton(1);
             }
           ),
