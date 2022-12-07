@@ -167,6 +167,8 @@ class FreehandDrawing
     if(_addStrokeFigure == figure){
       _addStrokeFigure = null;
     }
+    _pinnedFigures.remove(figure);
+  
     //!!!!
     print(">Remove Figure!!!! ${N} -> ${_figures.length}");
   }
@@ -209,6 +211,22 @@ class FreehandDrawing
     redraw();
   }
 
+  // 他のユーザーが描いたものも含めて、全てのピン留め図形を削除
+  void deleteAllPinned()
+  {
+    // ピン留めされた図形をデータベースとローカルのMapから削除
+    _figures.removeWhere((key, figure){
+      if(figure.pinned){
+        figure.removeToDatabase();
+      }
+      return figure.pinned;
+    });
+    _pinnedFigures.clear();
+
+    // 再描画
+    redraw();
+  }
+
   //---------------------------------------------------------------------------
   // 他ユーザーとのリアルタイム同期
   DatabaseReference? _databaseRef;
@@ -218,6 +236,8 @@ class FreehandDrawing
   StreamSubscription<DatabaseEvent>? _addListener;
   // 削除イベント
   StreamSubscription<DatabaseEvent>? _removeListener;
+  // 変更イベント
+  StreamSubscription<DatabaseEvent>? _changeListener;
 
   // このアプリケーションインスタンスを一意に識別するキー
   // 手書きの変更通知が、自分自身によるものか、他のユーザーからかを識別
@@ -241,6 +261,10 @@ class FreehandDrawing
     _removeListener = _databaseRef!.onChildRemoved.listen((event){
       _onStrokeRemoved(event);
     });
+    _changeListener?.cancel();
+    _changeListener = _databaseRef!.onChildChanged.listen((event){
+      _onStrokeChanged(event);
+    });
   }
 
   // 配置ファイルを閉じる
@@ -251,6 +275,8 @@ class FreehandDrawing
     _addListener = null;
     _removeListener?.cancel();
     _removeListener = null;
+    _changeListener?.cancel();
+    _changeListener = null;
     // データベースへの参照をクリア
     _databaseRef = null;
 
@@ -277,11 +303,13 @@ class FreehandDrawing
 
     try {
       Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
-      
+
       // 作成が古すぎるデータが来たら、それは多分異常終了で残っているゴミなので削除する
+      // ただしピン留めされている場合を除く
       final createdTime = DateTime.fromMillisecondsSinceEpoch(data["time"] as int);
       final Duration d = DateTime.now().difference(createdTime);
-      if(10 < d.inSeconds){
+      final bool pinned = data.containsKey("pinned");
+      if((10 < d.inSeconds) && !pinned){
         print(">FreehandDrawing._onStrokeAdded() Remove an old garbage data.");
         event.snapshot.ref.remove();
         return;
@@ -293,7 +321,7 @@ class FreehandDrawing
         return;
       }
 
-      // ポリラインを作成して登録
+      // ポリラインを作成
       MyPolyline? polyline = Figure.makePolyline(data);
       if(polyline == null){
         return;
@@ -308,13 +336,16 @@ class FreehandDrawing
       }else{
         figure = Figure(key:key, parent:this, remote:true);
         _figures[key] = figure;
+        // ピン留めされていたら、そうする。
+        if(pinned) figure.pushPinByRemote();
       }
-      figure.addStroke(polyline);
+      // 図形にストロークを追加
+      figure.addStroke(polyline, ref: event.snapshot.ref);
 
       // 再描画
       redraw();
       //!!!!
-      print(">FreehandDrawing._onStrokeAdded() key:${key}");
+      print(">FreehandDrawing._onStrokeAdded() key:${key} pinned:${pinned}");
     } catch(e) {
       //!!!!
       print(">FreehandDrawing._onStrokeAdded() failed!!!!");
@@ -330,23 +361,49 @@ class FreehandDrawing
     try {
       Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
       
-      // 自分自身が追加した場合は無視
-      if(data["senderId"] == _appInstKey){
-        print(">FreehandDrawing._onStrokeRemoved() from myself.");
-        return;
-      }
+      // 自分自身の削除のイベントかはチェックしない。次の key の有無チェックで安全にスルーできる。
+      final bool myself = (data["senderId"] == _appInstKey);
 
-      // フェードアウトさせて消す
+      // 削除
+      // ピン留めされている場合とされていない場合で、先の処理が異なる
       final String key = data["key"] as String;
       final bool contains = _figures.containsKey(key);
       if(contains){
-        _figures[key]!.removeByRemote();
+        final bool change = _figures[key]!.removeByRemote();
+        // 変更があったら再描画
+        if(change) redraw();
       }
       //!!!!
-      print(">FreehandDrawing._onStrokeRemoved() key:${key} contains:${contains?'YES':'NO'}");
+      print(">FreehandDrawing._onStrokeRemoved()"
+            " key:${key} contains:${contains?'YES':'NO'} ${myself? 'from myself.': ''}");
     } catch(e) {
       //!!!!
       print(">FreehandDrawing._onStrokeRemoved() failed!!!!");
+    }
+  }
+
+  // 変更イベント
+  void _onStrokeChanged(DatabaseEvent event)
+  {
+    //!!!!
+    print(">FreehandDrawing._onStrokeChanged()");
+
+    try {
+      Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
+
+      // 指定の図形があるか確認
+      final String key = data["key"] as String;
+      final bool contains = _figures.containsKey(key);
+
+      // ピン留め
+      if(contains && data.containsKey("pinned")){
+        final bool change = _figures[key]!.pushPinByRemote();
+        // 変更があったら再描画
+        if(change) redraw();
+      }
+    } catch(e){
+      //!!!!
+      print(">FreehandDrawing._onStrokeChanged() failed!!!!");
     }
   }
 }
@@ -430,16 +487,17 @@ class Figure
   }
 
   // ストロークを追加
-  bool addStroke(MyPolyline polyline)
+  bool addStroke(MyPolyline polyline, { DatabaseReference? ref=null })
   {
     //!!!!
     print(">addStroke(${_state.toString()})");
 
     // 図形の新規作成(Open/RemoteOpen)か、連続したストロークの追加(WaitStroke)のみ
-    final bool removeByRemote = (_state == FigureState.RemoteOpen);
+    final bool remote = (_state == FigureState.RemoteOpen) ||
+                        (_state == FigureState.RemotePinned);
     final bool ok = (_state == FigureState.Open) ||
                     (_state == FigureState.WaitStroke) || 
-                    removeByRemote;
+                    remote;
     if(!ok) return false;
 
     // ピン留めされてない場合には半透明
@@ -448,7 +506,7 @@ class Figure
 
     // ストロークを追加
     _polylines.add(polyline);
-    if(!removeByRemote){
+    if(!remote){
       // 連続ストローク判定のタイマーを開始
       print(">${_state.toString()} => FigureState.Open");
       _state = FigureState.Open;
@@ -457,6 +515,11 @@ class Figure
 
       // 他のユーザーへストローク追加を同期
       _sentToDatabase(polyline);
+    }
+
+    // リモート図形の場合は、ストロークへの参照を登録
+    if(remote && (ref != null)){
+      _polylineRefs.add(ref);
     }
 
     return true;
@@ -538,7 +601,7 @@ class Figure
   bool pushPin()
   {
     // ピン留めできるのは、フェードアウトが始まるまで
-    // すでにピン留めされているのも処理しない
+    // すでにピン留めされている場合も処理しない
     final bool ok = (_state == FigureState.Open) ||
                     (_state == FigureState.WaitStroke) ||
                     (_state == FigureState.Close);
@@ -623,10 +686,39 @@ class Figure
   }
 
   // データベース経由で削除
-  void removeByRemote()
+  bool removeByRemote()
   {
-    // フェードアウトの削除シーケンス開始
-    _onShowTimer();
+    bool redraw = false;
+    if(!_pinned){
+      // ピン留めされていなければ、フェードアウトの削除シーケンス開始
+      _onShowTimer();
+    }else{
+      // ピン留めされていれば、即座に削除
+      _freehandDrawing.removeFigure(this);
+      // 再描画必要
+      redraw = true;
+    }
+    return redraw;
+  }
+
+  // データベース経由でピン留め
+  bool pushPinByRemote()
+  {
+    // すでにピン留めされている場合も処理しない
+    if((_state != FigureState.RemoteOpen) || _pinned) return false;
+    _pinned = true;
+
+    // 即座にピン留め状態に遷移
+    print(">pushPinByRemote() ${_state.toString()} => FigureState.RemotePinned");
+    _state = FigureState.RemotePinned;
+
+    // すでに含まれているストロークを不透明にする
+    _polylines.forEach((polyline){
+      polyline.color = polyline.color.withAlpha(255);
+      polyline.strokeWidth = pinnedWidth;
+    });
+
+    return true;
   }
 
   // 同期データからポリラインを作成
@@ -658,14 +750,15 @@ class Figure
 
 //-----------------------------------------------------------------------------
 enum FigureState {
-  Open,       // 次のストロークの追加可能な期間
-  WaitStroke, // 次のストロークの完了を待っている
-  Close,      // 次のストロークの追加は終了した期間(フェードアウトまでの待ち)
-  FadeOut,    // フェードアウト中
+  Open,         // 次のストロークの追加可能な期間
+  WaitStroke,   // 次のストロークの完了を待っている
+  Close,        // 次のストロークの追加は終了した期間(フェードアウトまでの待ち)
+  FadeOut,      // フェードアウト中
 
-  Pinned,     // ピン留めされている
+  Pinned,       // ピン留めされている
 
-  RemoteOpen, // 他のユーザーが作成したリモート図形として
+  RemoteOpen,   // 他のユーザーが作成したリモート図形として
+  RemotePinned, // ピン留めされたリモート図形
 }
 
 //-----------------------------------------------------------------------------
@@ -802,6 +895,7 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
           key: _subMenuWidgetKey,
           onPushPin: _onPushPin,
           onDeleteLastPinned: _onDeleteLastPinned,
+          onDeleteAllPinned: _onDeleteAllPinned,
           colorPaletteWidgetKey: _colorPaletteWidgetKey),
         ),
         _makeOffset(TextButton(
@@ -885,6 +979,12 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     freehandDrawing.deleteLastPinned();
   }
 
+  // 全てのピン留め図形を削除(UIイベントハンドラ)
+  void _onDeleteAllPinned()
+  {
+    freehandDrawing.deleteAllPinned();
+  }
+
   // 手書きを無効化(外部からの制御用関数)
   void disableDrawing()
   {
@@ -902,10 +1002,12 @@ class _SubMenuWidget extends StatefulWidget
     super.key,
     required this.onPushPin,
     required this.onDeleteLastPinned,
+    required this.onDeleteAllPinned,
     required this.colorPaletteWidgetKey});
  
   final Function onPushPin;
   final Function onDeleteLastPinned;
+  final Function onDeleteAllPinned;
   final GlobalKey<_ColorPaletteWidgetState> colorPaletteWidgetKey;
 
   @override
@@ -972,6 +1074,10 @@ class _SubMenuWidgetState
             style: _makeButtonStyle(1),
             onPressed: () {
               widget.onDeleteLastPinned();
+              _flashButton(1);
+            },
+            onLongPress: () {
+              widget.onDeleteAllPinned();
               _flashButton(1);
             }
           ),
