@@ -200,8 +200,12 @@ class FreehandDrawing
   {
     if(_pinnedFigures.isEmpty) return;
 
+    // データを削除
     Figure figure = _pinnedFigures.removeLast();
     _figures.remove(figure.key);
+    // データベース上からも削除
+    figure.removeToDatabase();
+    // 再描画
     redraw();
   }
 
@@ -452,7 +456,7 @@ class Figure
       _openTimer = Timer(_openDuration, _onOpenTimer);
 
       // 他のユーザーへストローク追加を同期
-      sentToDatabase(polyline);
+      _sentToDatabase(polyline);
     }
 
     return true;
@@ -556,6 +560,9 @@ class Figure
       polyline.strokeWidth = pinnedWidth;
     });
 
+    // 他のユーザーへピン留めを通知
+    _pushPinToDatabase();
+  
     return true;
   }
 
@@ -573,7 +580,7 @@ class Figure
 
   //---------------------------------------------------------------------------
   // 他ユーザーとのリアルタイム同期
-  void sentToDatabase(MyPolyline polyline)
+  void _sentToDatabase(MyPolyline polyline)
   {
     // 配置ファイルがオープンされていなければ何もしない
     if(_freehandDrawing.databaseRef == null) return;
@@ -593,6 +600,16 @@ class Figure
       "time": ServerValue.timestamp,
       "color": polyline.color.value,
       "points": latlngs,
+    });
+  }
+
+  // データベース上の図形をピン留め
+  void _pushPinToDatabase()
+  {
+    _polylineRefs.forEach((ref){
+      ref.update({
+        "pinned": true,
+      });
     });
   }
 
