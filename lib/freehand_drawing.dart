@@ -28,10 +28,8 @@ List<Color> _penColorTable = const [
 class FreehandDrawing
 {
   FreehandDrawing({
-    required MapController mapController,
-    required String appInstKey }) :
-    _mapController = mapController,
-    _appInstKey = appInstKey
+    required MapController mapController }) :
+    _mapController = mapController
   {
   }
 
@@ -241,13 +239,19 @@ class FreehandDrawing
 
   // このアプリケーションインスタンスを一意に識別するキー
   // 手書きの変更通知が、自分自身によるものか、他のユーザーからかを識別
-  late String _appInstKey;
-  String get appInstKey => _appInstKey;
+  // open() のたびに再生成されるので、ファイルごとになる。
+  String appInstKey = "";
 
   //---------------------------------------------------------------------------
   // 配置ファイルを開く
   void open(String uidPath)
   {
+    //!!!!
+    print(">FreehandDrawing.open(${uidPath})");
+
+    // データベースにストロークを書き込んだアプリインスタンスを識別するキーを作成
+    appInstKey = UniqueKey().toString();
+
     // データベースの参照ポイント
     final String dbPath = "assign" + uidPath + "/freehand_drawing";
     _databaseRef = FirebaseDatabase.instance.ref(dbPath);
@@ -270,6 +274,9 @@ class FreehandDrawing
   // 配置ファイルを閉じる
   void close()
   {
+    //!!!!
+    print(">FreehandDrawing.close()");
+
     // 追加削除イベントを閉じる
     _addListener?.cancel();
     _addListener = null;
@@ -281,8 +288,9 @@ class FreehandDrawing
     _databaseRef = null;
 
     // まだ削除されていない図形をクリアして削除
+    // ただしピン留めされた図形はデータベースに残す
     _figures.forEach((key, figure){
-      figure.clear();
+      if(!figure.pinned) figure.clear();
     });
     _figures.clear();
     _pinnedFigures.clear();
@@ -316,7 +324,7 @@ class FreehandDrawing
       }
 
       // 自分自身が追加した場合は無視
-      if(data["senderId"] == _appInstKey){
+      if(data["senderId"] == appInstKey){
         print(">FreehandDrawing._onStrokeAdded() from myself.");
         return;
       }
@@ -362,7 +370,7 @@ class FreehandDrawing
       Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
       
       // 自分自身の削除のイベントかはチェックしない。次の key の有無チェックで安全にスルーできる。
-      final bool myself = (data["senderId"] == _appInstKey);
+      final bool myself = (data["senderId"] == appInstKey);
 
       // 削除
       // ピン留めされている場合とされていない場合で、先の処理が異なる
