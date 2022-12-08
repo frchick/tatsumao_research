@@ -47,18 +47,16 @@ class MyHomePage extends StatefulWidget
 
 class _MyHomePageState extends State<MyHomePage>
 {
-  late MapController _mapController = MapController();
+  final _mapController = MapController();
+
+  // 手書き図へのアクセスキー
+  final _freehandDrawingOnMapKey = GlobalKey<FreehandDrawingOnMapState>();
 
   @override
   void initState()
   {
-    // このアプリケーションインスタンスを一意に識別するキー
-    final String appInstKey = UniqueKey().toString();
-
-    _mapController = MapController();
     freehandDrawing = FreehandDrawing(
-      mapController:_mapController,
-      appInstKey: appInstKey);
+      mapController:_mapController);
     freehandDrawing.open("/1");
 
     //!!!! テスト
@@ -167,20 +165,67 @@ class _MyHomePageState extends State<MyHomePage>
             ),
           ),
 
-          //!!!!
+          Align(
+            alignment: const Alignment(-1.0, -1.0),
+            child: OnOffSwitch(onChangeSwitch: (value){
+              _freehandDrawingOnMapKey.currentState?.setEditLock(value);
+            }),
+          ),
+
+          // ファイル切り替え相当
           Align(
             alignment: const Alignment(1.0, 1.0),
-            child: Container(
-              width:80,
-              height:80,
-              decoration: BoxDecoration(color: Colors.orange.shade900),
+            child: TextButton(
+              child: const Icon(Icons.refresh, size: 50),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange.shade900,
+                shadowColor: Colors.transparent,
+                fixedSize: const Size(80,80),
+                padding: const EdgeInsets.fromLTRB(0,0,0,10),
+                shape: const CircleBorder(),
+              ),
+              // 有効/無効切り替え
+              onPressed: () {
+                freehandDrawing.close();
+                freehandDrawing.redraw();
+                _freehandDrawingOnMapKey.currentState?.disableDrawing();
+                freehandDrawing.open("/1");
+              }
             ),
           ),
-          
+
           // 手書き図
-          FreehandDrawingOnMap(),
+          FreehandDrawingOnMap(key: _freehandDrawingOnMapKey),
         ],
       ),
+    );
+  }
+}
+
+//-----------------------------------------------------------------------------
+class OnOffSwitch extends StatefulWidget
+{
+  OnOffSwitch({ super.key, required this.onChangeSwitch });
+
+  late Function onChangeSwitch;
+
+  @override
+  State<OnOffSwitch> createState() => _OnOffSwitchState();
+}
+
+class _OnOffSwitchState extends State<OnOffSwitch>
+{
+  bool _on = false;
+
+  @override
+  Widget build(BuildContext context)
+  {
+    return Switch(
+      value: _on,
+      onChanged: (bool? value) {
+        widget.onChangeSwitch(value);
+        setState(() { _on = value!; });
+      },
     );
   }
 }

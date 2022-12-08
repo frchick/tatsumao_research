@@ -28,10 +28,8 @@ List<Color> _penColorTable = const [
 class FreehandDrawing
 {
   FreehandDrawing({
-    required MapController mapController,
-    required String appInstKey }) :
-    _mapController = mapController,
-    _appInstKey = appInstKey
+    required MapController mapController }) :
+    _mapController = mapController
   {
   }
 
@@ -241,13 +239,19 @@ class FreehandDrawing
 
   // このアプリケーションインスタンスを一意に識別するキー
   // 手書きの変更通知が、自分自身によるものか、他のユーザーからかを識別
-  late String _appInstKey;
-  String get appInstKey => _appInstKey;
+  // open() のたびに再生成されるので、ファイルごとになる。
+  String appInstKey = "";
 
   //---------------------------------------------------------------------------
   // 配置ファイルを開く
   void open(String uidPath)
   {
+    //!!!!
+    print(">FreehandDrawing.open(${uidPath})");
+
+    // データベースにストロークを書き込んだアプリインスタンスを識別するキーを作成
+    appInstKey = UniqueKey().toString();
+
     // データベースの参照ポイント
     final String dbPath = "assign" + uidPath + "/freehand_drawing";
     _databaseRef = FirebaseDatabase.instance.ref(dbPath);
@@ -270,6 +274,9 @@ class FreehandDrawing
   // 配置ファイルを閉じる
   void close()
   {
+    //!!!!
+    print(">FreehandDrawing.close()");
+
     // 追加削除イベントを閉じる
     _addListener?.cancel();
     _addListener = null;
@@ -281,8 +288,9 @@ class FreehandDrawing
     _databaseRef = null;
 
     // まだ削除されていない図形をクリアして削除
+    // ただしピン留めされた図形はデータベースに残す
     _figures.forEach((key, figure){
-      figure.clear();
+      if(!figure.pinned) figure.clear();
     });
     _figures.clear();
     _pinnedFigures.clear();
@@ -316,7 +324,7 @@ class FreehandDrawing
       }
 
       // 自分自身が追加した場合は無視
-      if(data["senderId"] == _appInstKey){
+      if(data["senderId"] == appInstKey){
         print(">FreehandDrawing._onStrokeAdded() from myself.");
         return;
       }
@@ -362,7 +370,7 @@ class FreehandDrawing
       Map<String, dynamic> data = event.snapshot.value as Map<String, dynamic>;
       
       // 自分自身の削除のイベントかはチェックしない。次の key の有無チェックで安全にスルーできる。
-      final bool myself = (data["senderId"] == _appInstKey);
+      final bool myself = (data["senderId"] == appInstKey);
 
       // 削除
       // ピン留めされている場合とされていない場合で、先の処理が異なる
@@ -950,7 +958,6 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     _dawingActive = !_dawingActive;
     if(_dawingActive){
       _subMenuWidgetKey.currentState?.expand();
-      setState((){});
     }else{
       disableDrawing();
     }
@@ -990,7 +997,16 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
   {
     _colorPaletteWidgetKey.currentState?.close();
     _subMenuWidgetKey.currentState?.close();
-    setState((){ _dawingActive = false; });
+    _dawingActive = false;
+  }
+
+  void setEditLock(bool lockEditing)
+  {
+    // 手書きが有効な場合には、一旦無効化する(サブメニューを閉じる)
+    _subMenuWidgetKey.currentState?.setEditLock(lockEditing);
+    if(_dawingActive){
+      disableDrawing();
+    }
   }
 }
 
@@ -1025,7 +1041,7 @@ class _SubMenuWidgetState
   Widget build(BuildContext context)
   {
     //!!!!
-    print(">_SubMenuWidget.build() !!!!");
+    print(">_SubMenuWidget.build() _menuAnimation=${_menuAnimation.status} _lockEditing=${_lockEditing} !!!!");
  
     return Offstage(
       // サブメニューが閉じているときは全体を非表示
@@ -1035,7 +1051,7 @@ class _SubMenuWidgetState
         delegate: _ExpandMenuDelegate(
           menuAnimation: _menuAnimation,
           direction: Axis.vertical,
-          numItems: 3,
+          numItems: (_lockEditing? 1: 3),
           iconSize: 60,
           margin: 10),
         children: [
@@ -1060,7 +1076,7 @@ class _SubMenuWidgetState
             }
           ),
           // ピン留め
-          TextButton(
+          if(!_lockEditing) TextButton(
             child: const Icon(Icons.push_pin, size: 50),
             style: _makeButtonStyle(0),
             onPressed: () {
@@ -1069,7 +1085,7 @@ class _SubMenuWidgetState
             }
           ),
           // ピン留めした図形の削除
-          TextButton(
+          if(!_lockEditing) TextButton(
             child: const Icon(Icons.backspace, size: 50),
             style: _makeButtonStyle(1),
             onPressed: () {
@@ -1103,6 +1119,13 @@ class _SubMenuWidgetState
       setState((){ _hilight[index] = false; });
     });
   }
+
+  // 編集ロックか
+  bool _lockEditing = false;
+  void setEditLock(bool lock)
+  {
+    _lockEditing = lock;
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -1125,7 +1148,7 @@ class _ColorPaletteWidgetState
   Widget build(BuildContext context)
   {
     //!!!!
-    print(">_ColorPaletteWidget.build() !!!!");
+    print(">_ColorPaletteWidget.build() _menuAnimation=${_menuAnimation.status} !!!!");
   
     return Offstage(
       // カラーパレットが閉じているときは全体を非表示
@@ -1216,6 +1239,7 @@ class _ExpandMenuState<T extends StatefulWidget>
   {
     if(_menuAnimation.status == AnimationStatus.dismissed){
       _menuAnimation.forward();
+      // 非表示になっているアイコンを表示するために再build必要
       setState((){});
     }
   }
