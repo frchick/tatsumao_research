@@ -899,6 +899,7 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
           key: _colorPaletteWidgetKey,
           onChangeColor: _onChangeColor),
         ),
+        // 上に展開するサブメニュー
         _makeOffset(_SubMenuWidget(
           key: _subMenuWidgetKey,
           onPushPin: _onPushPin,
@@ -906,6 +907,7 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
           onDeleteAllPinned: _onDeleteAllPinned,
           colorPaletteWidgetKey: _colorPaletteWidgetKey),
         ),
+        // 手書き図の有効/無効切り替えアイコン
         _makeOffset(TextButton(
           child: const Icon(Icons.border_color, size: 50),
           style: TextButton.styleFrom(
@@ -916,7 +918,6 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
             padding: const EdgeInsets.fromLTRB(0,0,0,10),
             shape: const CircleBorder(),
           ),
-          // 有効/無効切り替え
           onPressed: () => _onTapDrawingIcon(),
         )),
         
@@ -958,6 +959,8 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
     _dawingActive = !_dawingActive;
     if(_dawingActive){
       _subMenuWidgetKey.currentState?.expand();
+      // 再描画ではなく、ジェスチャー検出の有効無効切り替えのために必要
+      setState((){});
     }else{
       disableDrawing();
     }
@@ -997,7 +1000,8 @@ class FreehandDrawingOnMapState extends State<FreehandDrawingOnMap>
   {
     _colorPaletteWidgetKey.currentState?.close();
     _subMenuWidgetKey.currentState?.close();
-    _dawingActive = false;
+    // 再描画ではなく、ジェスチャー検出の有効無効切り替えのために必要
+    setState((){ _dawingActive = false; });
   }
 
   void setEditLock(bool lockEditing)
@@ -1043,9 +1047,16 @@ class _SubMenuWidgetState
     //!!!!
     print(">_SubMenuWidget.build() _menuAnimation=${_menuAnimation.status} _lockEditing=${_lockEditing} !!!!");
  
+    // 閉じたときの遅延代入を処理
+    final bool closed = (_menuAnimation.status == AnimationStatus.dismissed);
+    if((_delayLockEditing != null) && closed){
+      _lockEditing = _delayLockEditing!;
+      _delayLockEditing = null;
+    }
+  
     return Offstage(
       // サブメニューが閉じているときは全体を非表示
-      offstage: (_menuAnimation.status == AnimationStatus.dismissed),
+      offstage: closed,
       // サブメニューアイコンをアニメーション用Widget(Flow)に並べる
       child: Flow(
         delegate: _ExpandMenuDelegate(
@@ -1122,9 +1133,20 @@ class _SubMenuWidgetState
 
   // 編集ロックか
   bool _lockEditing = false;
+  bool ?_delayLockEditing;
   void setEditLock(bool lock)
   {
-    _lockEditing = lock;
+    // 変わらなければ何もしない
+    if(_lockEditing == lock) return;
+  
+    if(_menuAnimation.status == AnimationStatus.dismissed){
+      // メニューが閉じていれば、即座に代入
+      _lockEditing = lock;
+    }else{
+      // メニューが展開していれば、次回閉じたときに遅延代入
+      // メニューの閉じアニメーションの間、直前の表示状態を維持するため
+      _delayLockEditing = lock;
+    }
   }
 }
 
