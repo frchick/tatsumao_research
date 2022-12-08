@@ -165,6 +165,13 @@ class _MyHomePageState extends State<MyHomePage>
             ),
           ),
 
+          Align(
+            alignment: const Alignment(-1.0, -1.0),
+            child: OnOffSwitch(onChangeSwitch: (value){
+              _freehandDrawingOnMapKey.currentState?.setEditLock(value);
+            }),
+          ),
+
           // ファイル切り替え相当
           Align(
             alignment: const Alignment(1.0, 1.0),
@@ -191,6 +198,34 @@ class _MyHomePageState extends State<MyHomePage>
           FreehandDrawingOnMap(key: _freehandDrawingOnMapKey),
         ],
       ),
+    );
+  }
+}
+
+//-----------------------------------------------------------------------------
+class OnOffSwitch extends StatefulWidget
+{
+  OnOffSwitch({ super.key, required this.onChangeSwitch });
+
+  late Function onChangeSwitch;
+
+  @override
+  State<OnOffSwitch> createState() => _OnOffSwitchState();
+}
+
+class _OnOffSwitchState extends State<OnOffSwitch>
+{
+  bool _on = false;
+
+  @override
+  Widget build(BuildContext context)
+  {
+    return Switch(
+      value: _on,
+      onChanged: (bool? value) {
+        widget.onChangeSwitch(value);
+        setState(() { _on = value!; });
+      },
     );
   }
 }
