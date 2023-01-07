@@ -11,6 +11,7 @@ import 'firebase_options.dart';
 
 import 'mypolyline_layer.dart';
 import 'freehand_drawing.dart';
+import 'distance_circle_layer.dart';
 
 void main() async
 {
@@ -81,14 +82,17 @@ class _MyHomePageState extends State<MyHomePage>
       pushs.add(r);
       print("${r.key}");
     }
-    var listen0 = ref.onChildAdded.listen((event){
-      print("onChildAdded > key:${event.snapshot.key} value:${event.snapshot.value}");
+    var listen0 = ref.onChildAdded.listen((DatabaseEvent event){
+      DataSnapshot snapshot = event.snapshot;
+      print("onChildAdded > key:${event.snapshot.key} value:${snapshot.value}");
     });
-    var listen1 = ref.onChildChanged.listen((event){
-      print("onChildChanged > key:${event.snapshot.key} value:${event.snapshot.value}");
+    var listen1 = ref.onChildChanged.listen((DatabaseEvent event){
+      DataSnapshot snapshot = event.snapshot;
+      print("onChildChanged > key:${event.snapshot.key} value:${snapshot.value}");
     });
-    var listen2 = ref.onChildRemoved.listen((event){
-      print("onChildRemoved > key:${event.snapshot.key} value:${event.snapshot.value}");
+    var listen2 = ref.onChildRemoved.listen((DatabaseEvent event){
+      DataSnapshot snapshot = event.snapshot;
+      print("onChildRemoved > key:${event.snapshot.key} value:${snapshot.value}");
     });
 
     await new Future.delayed(new Duration(seconds: 2));
@@ -143,6 +147,7 @@ class _MyHomePageState extends State<MyHomePage>
                 maxZoom: 18,
                 plugins: [
                   MyPolylineLayerPlugin(),
+                  DistanceCircleLayerPlugin(),
                 ],
               ),
               nonRotatedLayers: [
@@ -161,6 +166,8 @@ class _MyHomePageState extends State<MyHomePage>
                 freehandDrawing.getFiguresLayerOptions(),
                 // 手書きの今引いている最中のライン
                 freehandDrawing.getCurrentStrokeLayerOptions(),
+                // 距離サークル
+                DistanceCircleLayerOptions(),
               ],
             ),
           ),
