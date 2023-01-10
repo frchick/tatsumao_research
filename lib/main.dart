@@ -167,7 +167,7 @@ class _MyHomePageState extends State<MyHomePage>
                 // 手書きの今引いている最中のライン
                 freehandDrawing.getCurrentStrokeLayerOptions(),
                 // 距離サークル
-                DistanceCircleLayerOptions(),
+                DistanceCircleLayerOptions(mapController: _mapController),
               ],
             ),
           ),
