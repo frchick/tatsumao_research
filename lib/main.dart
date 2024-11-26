@@ -66,7 +66,7 @@ class _MyHomePageState extends State<MyHomePage>
     freehandDrawing.open("/1");
 
     // エリアを構成するマーカーを構築
-    _areaDataEditor.buildMarkers(false);
+    _areaDataEditor.buildMarkers(areaData, false);
 
     //!!!! テスト
 //    testRealtimeDatabase();
@@ -235,7 +235,7 @@ class _MyHomePageState extends State<MyHomePage>
                     // エリア編集機能の、マーカーのチェッククリア
                     ElevatedButton(
                       onPressed: !_areaDataEditor.active? null: () {
-                        _areaDataEditor.clearMarkersCheck();
+                        _areaDataEditor.clearAllMarkersCheck();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
@@ -248,7 +248,7 @@ class _MyHomePageState extends State<MyHomePage>
                     // エリア編集機能の、ポリゴン更新
                     ElevatedButton(
                       onPressed: !_areaDataEditor.active? null: () {
-                        _areaDataEditor.buildMarkers(true);
+                        _areaDataEditor.buildPolygons();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,

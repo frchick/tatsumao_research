@@ -9,12 +9,15 @@ class AreaDataEdit
   // エリアを構成する頂点のマーカー
   List<Marker> _areaMarkers = [];
   List<bool> _areaMarkersFlag = [];
+  List<Marker> _areaMarkersDispList = []; // 表示用
 
   // 選択されている頂点により構成されるエリアデータ
   List<Polygon> _areaPolygons = [];
+  List<Polygon> _areaPolygonsDispList = []; // 表示用
 
   // マーカーの再描画
-  var _redrawAreaMarkers = StreamController<void>.broadcast();
+  final _redrawAreaMarkers = StreamController<void>.broadcast();
+  void redraw() { _redrawAreaMarkers.sink.add(null); }
 
   // 機能の有効無効
   bool _active = true;
@@ -23,7 +26,16 @@ class AreaDataEdit
   {
     if(_active != value){
       _active = value;
-      buildMarkers(true);
+      // 非表示の場合は、表示用リストを空に。
+      // 表示の場合は、元のリストから表示用リストにコピー。
+      if(_active){
+        _areaMarkersDispList.addAll(_areaMarkers);
+        _areaPolygonsDispList.addAll(_areaPolygons);
+      }else{
+        _areaMarkersDispList.clear();
+        _areaPolygonsDispList.clear();
+      }
+      redraw();
     }
   }
 
@@ -31,7 +43,7 @@ class AreaDataEdit
   MarkerLayerOptions getMarkerLayerOptions()
   {
     return MarkerLayerOptions(
-      markers: _areaMarkers,
+      markers: _areaMarkersDispList,
       rebuild: _redrawAreaMarkers.stream,
     );
   }
@@ -40,66 +52,73 @@ class AreaDataEdit
   PolygonLayerOptions getPolygonLayerOptions()
   {
     return PolygonLayerOptions(
-      polygons: _areaPolygons,
+      polygons: _areaPolygonsDispList,
       rebuild: _redrawAreaMarkers.stream,
     );
   }
 
   // エリアを構成するマーカーを構築
-  void buildMarkers(bool redraw)
+  void buildMarkers(AreaData areaData, bool redraw_)
   {
     // 初回のみ、マーカーフラグの配列を作成
     var polygons = areaData.makePolygons();
-    if(_areaMarkersFlag.length == 0){
-      int num = 0;
-      for(var p in polygons){
-        num += p.points.length;
-      }
-      _areaMarkersFlag = List.filled(num, false);
+    int num = 0;
+    for(var p in polygons){
+      num += p.points.length;
     }
+    _areaMarkersFlag = List.filled(num, false);
   
     // マーカー配列を作成
     _areaMarkers.clear();
-    if(_active){
-      int index = 0;
-      for(var p in polygons){
-        for(var c in p.points){
-          var color = (_areaMarkersFlag[index]? Colors.blue: Colors.red);
-          index++;
-          _areaMarkers.add(makeOneMarker(c, color));
-        }
+    _areaMarkersDispList.clear();
+    for(var p in polygons){
+      for(var c in p.points){
+        var marker = _makeOneMarker(c, false);
+        _areaMarkers.add(marker);
       }
     }
+    _areaMarkersDispList.addAll(_areaMarkers);
 
+    // ポリゴンをリセット
+    _areaPolygons.clear();
+    _areaPolygonsDispList.clear();
+
+    // 再描画
+    if(redraw_){
+      redraw();
+    }
+  }
+
+  // 選択されているマーカーからポリゴンを作成(再描画込み)
+  void buildPolygons()
+  {
     // 選択されている頂点からポリゴンを作成
     _areaPolygons.clear();
-    if(_active){
-      int index = 0;
-      Polygon poly = Polygon(
-        points: [],
-        color: const Color.fromRGBO(0, 0, 255, 0.3),
-        isFilled: true,
-      );
-      for(var v in _areaMarkers){
-        if(_areaMarkersFlag[index]){
-          poly.points.add(v.point);
-          print("        LatLng(${v.point.latitude}, ${v.point.longitude}),");
-        }
-        index++;
-      }
-      if(3 <= poly.points.length){
-        _areaPolygons.add(poly);
+    _areaPolygonsDispList.clear();
+    Polygon poly = Polygon(
+      points: [],
+      color: const Color.fromRGBO(0, 0, 255, 0.3),
+      isFilled: true,
+    );
+    int index = 0;
+    for(var v in _areaMarkers){
+      if(_areaMarkersFlag[index++]){
+        poly.points.add(v.point);
+        print("        LatLng(${v.point.latitude}, ${v.point.longitude}),");
       }
     }
+    if(3 <= poly.points.length){
+      _areaPolygons.add(poly);
+      _areaPolygonsDispList.addAll(_areaPolygons);
+    }
 
-    if(redraw){
-      _redrawAreaMarkers.sink.add(null);
-    } 
+    redraw();
   }
 
   // マーカーを一つ作成
-  Marker makeOneMarker(LatLng point, Color color)
+  Marker _makeOneMarker(LatLng point, bool check)
   {
+    var color = (check? Colors.blue: Colors.red);
     return Marker(
       width: 10,
       height: 10,
@@ -155,19 +174,26 @@ class AreaDataEdit
   {
     if(0 <= index){
       _areaMarkersFlag[index] = !_areaMarkersFlag[index];
-
-      var color = (_areaMarkersFlag[index]? Colors.blue: Colors.red);
-      _areaMarkers[index] = makeOneMarker(_areaMarkers[index].point, color);
-      _redrawAreaMarkers.sink.add(null);
+      var marker = _makeOneMarker(_areaMarkers[index].point, _areaMarkersFlag[index]);
+      _areaMarkers[index] = marker;
+      _areaMarkersDispList[index] = marker;
+      redraw();
     }
   }
 
   // マーカーのマークを全てクリア(再描画込み)
-  void clearMarkersCheck()
+  void clearAllMarkersCheck()
   {
     for(int i = 0; i < _areaMarkersFlag.length; i++){
-      _areaMarkersFlag[i] = false;
+      if(_areaMarkersFlag[i]){
+        _areaMarkersFlag[i] = false;
+        var marker = _makeOneMarker(_areaMarkers[i].point, false);
+        _areaMarkers[i] = marker;
+        _areaMarkersDispList[i] = marker;
+      }
     }
-    buildMarkers(true);
+    _areaPolygons.clear();
+    _areaPolygonsDispList.clear();
+    redraw();
   }
 }
