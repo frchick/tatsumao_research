@@ -19,7 +19,13 @@ class AreaDataEdit
   // 機能の有効無効
   bool _active = true;
   bool get active => _active;
-  set active(bool value) { _active = value; }
+  set active(bool value)
+  {
+    if(_active != value){
+      _active = value;
+      buildMarkers(true);
+    }
+  }
 
   // FlutterMap の MarkerLayerOptions (頂点)を作成
   MarkerLayerOptions getMarkerLayerOptions()

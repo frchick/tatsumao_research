@@ -131,6 +131,14 @@ class _MyHomePageState extends State<MyHomePage>
     listen2.cancel();
   }
 
+  // UIの再描画
+  var _updateUIStream = StreamController<void>.broadcast();
+
+  void updateUI()
+  {
+    _updateUIStream.sink.add(null);
+  }
+
   @override
   Widget build(BuildContext context)
   {
@@ -198,56 +206,59 @@ class _MyHomePageState extends State<MyHomePage>
           // 画面左上のUI群
           Align(
             alignment: const Alignment(-1.0, -1.0),
-            child: Column(
-              children: [
-                // 手書き図形の編集ロック
-                OnOffSwitch(
-                  onChangeSwitch: (value) {
-                    _freehandDrawingOnMapKey.currentState?.setEditLock(value);
-                  }
-                ),
-                
-                // エリア編集機能の有効無効
-                ElevatedButton(
-                  onPressed: () {
-                    setState((){
-                      _areaDataEditor.active = !_areaDataEditor.active;
-                      _areaDataEditor.buildMarkers(false);
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _areaDataEditor.active? Colors.blue: Colors.grey,
-                    minimumSize: const Size(130, 40),
-                  ),
-                  child: const Text('Area Editor'),
-                ),
-                SizedBox(height: 4),
+            child: StreamBuilder<void>(
+              stream: _updateUIStream.stream,
+              builder: ((context, snapshot) {
+                return Column(
+                  children: [
+                    // 手書き図形の編集ロック
+                    OnOffSwitch(
+                      onChangeSwitch: (value) {
+                        _freehandDrawingOnMapKey.currentState?.setEditLock(value);
+                      }
+                    ),
+                    
+                    // エリア編集機能の有効無効
+                    ElevatedButton(
+                      onPressed: () {
+                        _areaDataEditor.active = !_areaDataEditor.active;
+                        updateUI();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _areaDataEditor.active? Colors.blue: Colors.grey,
+                        minimumSize: const Size(130, 40),
+                      ),
+                      child: const Text('Area Editor'),
+                    ),
+                    SizedBox(height: 4),
 
-                // エリア編集機能の、マーカーのチェッククリア
-                ElevatedButton(
-                  onPressed: () {
-                    _areaDataEditor.clearMarkersCheck();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    minimumSize: const Size(130, 40),
-                  ),
-                  child: const Text('Clear Checks'),
-                ),
-                SizedBox(height: 4),
+                    // エリア編集機能の、マーカーのチェッククリア
+                    ElevatedButton(
+                      onPressed: !_areaDataEditor.active? null: () {
+                        _areaDataEditor.clearMarkersCheck();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        minimumSize: const Size(130, 40),
+                      ),
+                      child: const Text('Clear Checks'),
+                    ),
+                    SizedBox(height: 4),
 
-                // エリア編集機能の、ポリゴン更新
-                ElevatedButton(
-                  onPressed: () {
-                    _areaDataEditor.buildMarkers(true);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    minimumSize: const Size(130, 40),
-                  ),
-                  child: const Text('Update Area'),
-                ),
-              ],
+                    // エリア編集機能の、ポリゴン更新
+                    ElevatedButton(
+                      onPressed: !_areaDataEditor.active? null: () {
+                        _areaDataEditor.buildMarkers(true);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        minimumSize: const Size(130, 40),
+                      ),
+                      child: const Text('Update Area'),
+                    ),
+                  ],
+                );
+              }),
             ),
           ),
 
