@@ -13,6 +13,7 @@ import 'mypolyline_layer.dart';
 import 'freehand_drawing.dart';
 import 'distance_circle_layer.dart';
 import 'area_data.dart';
+import 'area_data_edit.dart';
 
 void main() async
 {
@@ -54,12 +55,18 @@ class _MyHomePageState extends State<MyHomePage>
   // 手書き図へのアクセスキー
   final _freehandDrawingOnMapKey = GlobalKey<FreehandDrawingOnMapState>();
 
+  // エリアデータの編集機能
+  AreaDataEdit _areaDataEditor = new AreaDataEdit();
+
   @override
   void initState()
   {
     freehandDrawing = FreehandDrawing(
       mapController:_mapController);
     freehandDrawing.open("/1");
+
+    // エリアを構成するマーカーを構築
+    _areaDataEditor.buildMarkers(false);
 
     //!!!! テスト
 //    testRealtimeDatabase();
@@ -150,6 +157,13 @@ class _MyHomePageState extends State<MyHomePage>
                   MyPolylineLayerPlugin(),
                   DistanceCircleLayerPlugin(),
                 ],
+                // タップした位置のマーカーを検索
+                onTap: (tapPosition, point){
+                  int i = _areaDataEditor.findMarker(point, _mapController);
+                  if(0 <= i){
+                    _areaDataEditor.checkMarker(i);
+                  }
+                },
               ),
               nonRotatedLayers: [
                 // 高さ陰影図
@@ -168,6 +182,9 @@ class _MyHomePageState extends State<MyHomePage>
                   polygons: areaData.makePolygons(),
                   polygonCulling: true,
                 ),
+                // ポリゴン編集機能
+                _areaDataEditor.getMarkerLayerOptions(),
+                _areaDataEditor.getPolygonLayerOptions(),
                 // 手書き図形レイヤー
                 freehandDrawing.getFiguresLayerOptions(),
                 // 手書きの今引いている最中のライン
@@ -178,11 +195,60 @@ class _MyHomePageState extends State<MyHomePage>
             ),
           ),
 
+          // 画面左上のUI群
           Align(
             alignment: const Alignment(-1.0, -1.0),
-            child: OnOffSwitch(onChangeSwitch: (value){
-              _freehandDrawingOnMapKey.currentState?.setEditLock(value);
-            }),
+            child: Column(
+              children: [
+                // 手書き図形の編集ロック
+                OnOffSwitch(
+                  onChangeSwitch: (value) {
+                    _freehandDrawingOnMapKey.currentState?.setEditLock(value);
+                  }
+                ),
+                
+                // エリア編集機能の有効無効
+                ElevatedButton(
+                  onPressed: () {
+                    setState((){
+                      _areaDataEditor.active = !_areaDataEditor.active;
+                      _areaDataEditor.buildMarkers(false);
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _areaDataEditor.active? Colors.blue: Colors.grey,
+                    minimumSize: const Size(130, 40),
+                  ),
+                  child: const Text('Area Editor'),
+                ),
+                SizedBox(height: 4),
+
+                // エリア編集機能の、マーカーのチェッククリア
+                ElevatedButton(
+                  onPressed: () {
+                    _areaDataEditor.clearMarkersCheck();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    minimumSize: const Size(130, 40),
+                  ),
+                  child: const Text('Clear Checks'),
+                ),
+                SizedBox(height: 4),
+
+                // エリア編集機能の、ポリゴン更新
+                ElevatedButton(
+                  onPressed: () {
+                    _areaDataEditor.buildMarkers(true);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    minimumSize: const Size(130, 40),
+                  ),
+                  child: const Text('Update Area'),
+                ),
+              ],
+            ),
           ),
 
           // ファイル切り替え相当
