@@ -309,8 +309,7 @@ class _MyHomePageState extends State<MyHomePage>
   // ダイアログテスト
   void showTestDialog(BuildContext context)
   {
-    var dialog = AreaFilterDialog();
-    dialog.showDialog(context);
+    showAreaFilterDialog(context);
   }
 }
 

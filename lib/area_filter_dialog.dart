@@ -20,47 +20,8 @@ int areaFilterBits = 0x000f;  // テスト用の適当な初期値
 
 class AreaFilterDialog extends StatefulWidget
 {
-  // 表示前のエリアフィルターのフラグ(変更の有無を確認する用)
-  final int _areaFilterBits0 = areaFilterBits;
-
-  AreaFilterDialog({super.key});
-
   @override
   AreaFilterDialogState createState() => AreaFilterDialogState();
-
-  // ダイアログを開く
-  Future<bool?> showDialog(BuildContext context)
-  {
-    // 画面サイズに合わせたダイアログの高さを計算
-    // (Flutter のレイアウトによる高さ調整がうまくいかないので…)
-    var screenSize = MediaQuery.of(context).size;
-    double dialogHeight = 6 + 147 + (_areaNames.length * 42) + 6;
-    double dialogWidth = 200;
-  
-    // 横長画面の場合には、ダイアログを左側に寄せる
-    AlignmentGeometry dialogAlignment = 
-      (screenSize.height < screenSize.width)? Alignment.topLeft: Alignment.center;
-      
-    // ダイアログ表示
-    return showMyBasicDialog<bool>(
-      context: context,
-      width: dialogWidth,
-      height: dialogHeight,
-      alignment: dialogAlignment,
-      margin: const EdgeInsets.symmetric(horizontal:20, vertical:20),
-      padding: const EdgeInsets.symmetric(horizontal:0, vertical:6),
-      onClose: () {
-        // ダイアログの終了時、変更の有無を確認して戻す
-        final bool changeFilter = (_areaFilterBits0 != areaFilterBits); 
-        print("WillPopScope.onWillPop(): changeFilter=${changeFilter}");
-        Navigator.pop(context, changeFilter);
-        return Future.value(true);
-      },
-      builder: (context) {
-        return this;
-      },
-    );
-  }
 }
 
 class AreaFilterDialogState extends State<AreaFilterDialog>
@@ -234,4 +195,41 @@ class AreaFilterDialogState extends State<AreaFilterDialog>
       ],
     );
   }
+}
+
+// ダイアログを開く
+Future<bool?> showAreaFilterDialog(BuildContext context)
+{
+  // 表示前のエリアフィルターのフラグ(変更の有無を確認する用)
+  final int areaFilterBits0 = areaFilterBits;
+
+  // 画面サイズに合わせたダイアログの高さを計算
+  // (Flutter のレイアウトによる高さ調整がうまくいかないので…)
+  var screenSize = MediaQuery.of(context).size;
+  double dialogHeight = 6 + 147 + (_areaNames.length * 42) + 6;
+  double dialogWidth = 200;
+
+  // 横長画面の場合には、ダイアログを左側に寄せる
+  AlignmentGeometry dialogAlignment = 
+    (screenSize.height < screenSize.width)? Alignment.topLeft: Alignment.center;
+    
+  // ダイアログ表示
+  return showMyBasicDialog<bool>(
+    context: context,
+    width: dialogWidth,
+    height: dialogHeight,
+    alignment: dialogAlignment,
+    margin: const EdgeInsets.symmetric(horizontal:20, vertical:20),
+    padding: const EdgeInsets.symmetric(horizontal:0, vertical:6),
+    onClose: () {
+      // ダイアログの終了時、変更の有無を確認して戻す
+      final bool changeFilter = (areaFilterBits0 != areaFilterBits); 
+      print("WillPopScope.onWillPop(): changeFilter=${changeFilter}");
+      Navigator.pop(context, changeFilter);
+      return Future.value(true);
+    },
+    builder: (context) {
+      return AreaFilterDialog();
+    },
+  );
 }
