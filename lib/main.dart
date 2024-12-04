@@ -15,6 +15,8 @@ import 'distance_circle_layer.dart';
 import 'area_data.dart';
 import 'area_data_edit.dart';
 
+import 'area_filter_dialog.dart';
+
 void main() async
 {
   await Firebase.initializeApp(
@@ -304,203 +306,11 @@ class _MyHomePageState extends State<MyHomePage>
     );
   }
 
-  // 猟場のエリア名
-  // NOTE: 設定ボタン表示の都合で、4の倍数個で定義
-  // NOTE: TatsumaData.areaBits のビットと対応しているので、後から順番を変えられない。
-  final List<String> _areaNames = [
-    "暗闇沢", "ホンダメ", "苅野", "笹原林道",
-    "桧山", "858", "金太郎L", "最乗寺",
-    "裏山(静)", "中尾沢", "", "(未設定)",
-  ];
-
   // ダイアログテスト
   void showTestDialog(BuildContext context)
   {
-    // 表示エリアのスタイル
-    final visibleBoxDec = BoxDecoration(
-      borderRadius: BorderRadius.circular(5),
-      border: Border.all(color: Colors.orange, width:2),
-      color: Colors.orange[200],
-    );
-    final visibleTexStyle = const TextStyle(color: Colors.white);
-
-    // 非表示エリアのスタイル
-    final hideBoxDec = BoxDecoration(
-      borderRadius: BorderRadius.circular(5),
-      border: Border.all(color: Colors.grey, width:2),
-    );
-    final hideTexStyle = const TextStyle(color: Colors.grey);
-
-    // エリア一覧のスクロールバーを、常に表示するためのおまじない
-    final _scrollController = ScrollController();
-
-    // エリアごとのリスト項目を作成
-    List<Container> areas = [];
-    for(int i = 0; i < _areaNames.length; i++){
-      final int maskBit = (1 << i);
-      final bool visible = false;
-
-      areas.add(Container(
-        height: 42,
-      
-        child: ListTile(
-          // (左側)表示/非表示アイコン
-          leading: (visible? const Icon(Icons.visibility): const Icon(Icons.visibility_off)),
-
-          // エリア名タグ
-          // 表示/非表示で枠を変える
-          title: Row( // このRow入れないと、タグのサイズが横いっぱいになってしまう。
-            children: [
-              Container(
-                child: Text(
-                  _areaNames[i],
-                  style: (visible? visibleTexStyle: hideTexStyle),
-                ),
-                decoration: (visible? visibleBoxDec: hideBoxDec),
-                padding: const EdgeInsets.symmetric(vertical:2, horizontal:10),
-              ),
-            ]
-          ),
-          // タップで
-          onTap: (){
-          },
-        ),
-      ));
-    };
-
-    // 画面サイズに合わせたダイアログの高さを計算
-    // (Flutter のレイアウトによる高さ調整がうまくいかないので…)
-    var screenSize = MediaQuery.of(context).size;
-    double dialogHeight = 6 + 157 + (areas.length * 42) + 6;
-    double dialogWidth = 200;
-  
-    // 横長画面の場合には、ダイアログを左側に寄せる
-    AlignmentGeometry dialogAlignment = 
-      (screenSize.height < screenSize.width)? Alignment.topLeft: Alignment.center;
-  
-    // ダイアログ表示
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          alignment: dialogAlignment,
-          insetPadding: EdgeInsets.symmetric(horizontal:20, vertical:20),
-          child: Container(
-            width: dialogWidth,
-            height: dialogHeight,
-            padding: EdgeInsets.symmetric(horizontal:0, vertical:6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ヘッダ部分
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal:12, vertical:0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // [1段目]タイトル
-                      Text("表示/非表示設定",
-                        style: Theme.of(context).textTheme.titleLarge),
-                      SizedBox(height: 10),
-                      
-                      // [2段目]メンバーマーカーサイズ/非表示、GPSログ＆距離サークル表示/非表示スイッチ
-                      Row(
-                        children: [
-                          // メンバーマーカーサイズ/非表示スイッチ
-                          ToggleButtons(
-                            children: [
-                              const Icon(Icons.location_pin, size:30),
-                              const Icon(Icons.location_pin, size:22),
-                              const Icon(Icons.location_off, size:22),
-                            ],
-                            isSelected: [ true, false, false],
-                            onPressed: (index) {
-                            },
-                          ),
-                          const SizedBox(width:5, height:30),
-                          // GPSログ表示/非表示スイッチ
-                          ToggleButtons(
-                            children: [
-                              const Icon(Icons.timeline, size:30),
-                            ],
-                            isSelected: [ false ],
-                            onPressed: (index) {
-                            },
-                          ),
-                          // 距離サークル表示/非表示スイッチ
-                          ToggleButtons(
-                            children: [
-                              const Icon(Icons.radar, size:30),
-                            ],
-                            isSelected: [ false ],
-                            onPressed: (index) {
-                            },
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      // [3段目]一括表示/非表示スイッチ、グレー表示スイッチ
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // (左寄せ)一括表示/非表示スイッチ
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              // 一括表示
-                              IconButton(
-                                icon: const Icon(Icons.visibility),
-                                onPressed:() {
-                                },
-                              ),
-                              // 一括非表示
-                              IconButton(
-                                icon: const Icon(Icons.visibility_off),
-                                onPressed:() {
-                                },
-                              ),
-                            ],
-                          ),
-                          // (右寄せ)グレー表示スイッチ
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text("グレー表示", style: Theme.of(context).textTheme.titleMedium),
-                              Switch(
-                                value: false,
-                                onChanged:(r){
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-
-                // エリア一覧(スクロール可能)
-                Expanded(
-                  child: Scrollbar(
-                    thumbVisibility: true,
-                    controller: _scrollController,
-                    child: SingleChildScrollView(
-                      controller: _scrollController,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: areas,
-                      )
-                    )
-                  )
-                )
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    var dialog = AreaFilterDialog();
+    dialog.showDialog(context);
   }
 }
 
@@ -563,6 +373,8 @@ class MyTileProvider extends TileProvider {
     );
   }
 }
+
+
 
 /* NetworkNoRetryTileProvider のカスタム(WEB以外)
 class MyTileProvider extends TileProvider
