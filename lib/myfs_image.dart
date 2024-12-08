@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:mutex/mutex.dart';
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -18,6 +19,10 @@ class MyFSImage extends StatefulWidget
   State<MyFSImage> createState() => _MyFSImageState();
 }
 
+// Google Cloud Storage for firebase のバケットURL
+String _bucket_url = "";
+final _mutex = Mutex();
+
 class _MyFSImageState extends State<MyFSImage>
 {
   // 画像。読み込みが完了するまでは null。
@@ -32,14 +37,30 @@ class _MyFSImageState extends State<MyFSImage>
 
   void getImage(String gsPath) async
   {
-    print("MyFSImage(${gsPath})");
-
+    await _mutex.acquire();
     try {
       // Firebase Storage のURIスキーム(gs://)からURLを取得し、HTTPリクエストで画像を取得
-      // NOTE: ブラウザにキャッシュしようとすると、CORSでハマる
-      final ref = FirebaseStorage.instance.ref().child(gsPath);
-      final url = await ref.getDownloadURL();
-      final response = await http.get(Uri.parse(url));
+      // NOTE: ブラウザにキャッシュするために、
+      // - Firebase Storate にCORSを設定する必要がある。
+      // - Firebase Storage のURLはキャッシュされない。Google Cloud Storage の一般公開URLで参照する。
+
+      // Google Cloud Storage の一般公開URLに変換。
+      // 最初の一回だけ、バケットURLを取得するために、Firebase Storage を使う。
+      // NOTE: 一般公開URLをハードコートすよりマシ。
+      // NOTE: 並列して複数の画像が走るので、Mutexで最初の一つだけがバケットURLを取得する。
+      if(_bucket_url.isEmpty)
+      {
+        final ref = FirebaseStorage.instance.ref().child(gsPath);
+        final url = await ref.getDownloadURL();
+        int i0 = url.indexOf("/b/");
+        int i1 = url.indexOf("/o/");
+        _bucket_url = url.substring(i0 + 3, i1);
+        print("MyFSImage : _bucket_url = ${_bucket_url}");
+      }
+      _mutex.release();
+
+      final public_url = "https://storage.googleapis.com/" + _bucket_url + "/" + gsPath;
+      final response = await http.get(Uri.parse(public_url));
 
       // HTTPレスポンスを得られたら画像を作成
       setState(() {
@@ -47,22 +68,22 @@ class _MyFSImageState extends State<MyFSImage>
         {
           final imageBytes = response.bodyBytes;
           _iconImage = Image.memory(imageBytes);
-          print("MyFSImage : _iconImage = ${_iconImage}");
         }else{
           // 成功(200)以外ならエラーアイコン
           _iconImage = widget.errorIcon;
-          _iconImage ??= const Icon(Icons.error, size:54);
-          print("MyFSImage : Error ${response.statusCode}");
+          _iconImage ??= const Icon(Icons.error, size:60);
+          print("MyFSImage : Error : ${response.statusCode}");
         }
       });
     } catch (e) {
       // 例外が発生したらエラーアイコン
       setState(() {
         _iconImage = widget.errorIcon;
-        _iconImage ??= const Icon(Icons.error, size:54);
-        print("MyFSImage : Excepthon ${e}");
+        _iconImage ??= const Icon(Icons.error, size:60);
+        print("MyFSImage : Excepthon : ${e}");
       });
     }
+    if(_mutex.isLocked) _mutex.release();
   }
 
   @override
@@ -71,7 +92,7 @@ class _MyFSImageState extends State<MyFSImage>
     // 画像が取得できるまでは、適当なアイコンを返す
     Widget? iconImage = _iconImage;
     iconImage ??= widget.loadingIcon;
-    iconImage ??= const Icon(Icons.downloading, size:54);
+    iconImage ??= const Icon(Icons.downloading, size:60);
     return iconImage;
   }
 }

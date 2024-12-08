@@ -233,7 +233,7 @@ class _MyHomePageState extends State<MyHomePage>
                       width: 64.0,
                       height: 72.0,
                       builder: (ctx) =>
-                        MyFSImage('assets/member_icon/xxx.png', loadingIcon:_loadingIcon),
+                        MyFSImage('assets/member_icon/002.png', loadingIcon:_loadingIcon),
                       rotateMarker: false,
                     ),
                   ],
