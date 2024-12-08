@@ -58,7 +58,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '884155585105',
     projectId: 'tatsumao-research',
     authDomain: 'tatsumao-research.firebaseapp.com',
-    databaseURL: 'https://tatsumao-research-default-rtdb.asia-southeast1.firebasedatabase.app/',
-    storageBucket: 'tatsumao-research.appspot.com',
+    databaseURL: 'https://tatsumao-research-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'tatsumao-research.firebasestorage.app',
   );
+
 }

@@ -4,13 +4,13 @@ A new Flutter project.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+## Firebase Storage から画像を読み込む。
 
-A few resources to get you started if this is your first Flutter project:
+Firebase Storage に対してクロスサイトオリジンを設定する。
+https://qiita.com/chima91/items/0cd46b5965e087609ef5
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
++ gsutil をインストールする。
+  https://cloud.google.com/storage/docs/gsutil_install?hl=ja#windows
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
++ "Google Cloud SDK Shell" で以下を実行
+  >gsutil cors set cors.json gs://tatsumao-research.firebasestorage.app

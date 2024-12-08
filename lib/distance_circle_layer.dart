@@ -88,7 +88,7 @@ class DistanceCirclePainter extends CustomPainter
 
     // 距離サークルの半径を計算
     final double R = selectCircleR(screenDist);
-    print("DistanceCircleLayer screenDist=${screenDist} R=${R}");
+//    print("DistanceCircleLayer screenDist=${screenDist} R=${R}");
 
     // ドット数換算
     final double screenR = R * screenWidth / screenDist;
