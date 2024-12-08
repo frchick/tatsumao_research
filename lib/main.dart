@@ -1,21 +1,25 @@
 //import 'dart:io'; // HttpClient
 import 'dart:async';   // Stream使った再描画、Timer
 import 'package:flutter/material.dart';
+
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map/plugin_api.dart';
+import 'package:flutter_map_dragmarker/dragmarker.dart';
 import 'package:positioned_tap_detector_2/positioned_tap_detector_2.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'firebase_options.dart';
 
+
 import 'mypolyline_layer.dart';
 import 'freehand_drawing.dart';
 import 'distance_circle_layer.dart';
 import 'area_data.dart';
 import 'area_data_edit.dart';
-
 import 'area_filter_dialog.dart';
+import 'myfs_image.dart';
 
 void main() async
 {
@@ -59,6 +63,9 @@ class _MyHomePageState extends State<MyHomePage>
 
   // エリアデータの編集機能
   AreaDataEdit _areaDataEditor = new AreaDataEdit();
+
+  // メンバーアイコンの読み込み中に表示するアイコン
+  final Image _loadingIcon = Image.asset('assets/member_icon/loading.png', width:64, height:72);
 
   @override
   void initState()
@@ -166,6 +173,7 @@ class _MyHomePageState extends State<MyHomePage>
                 plugins: [
                   MyPolylineLayerPlugin(),
                   DistanceCircleLayerPlugin(),
+                  DragMarkerPlugin(),
                 ],
                 // タップした位置のマーカーを検索
                 onTap: (tapPosition, point){
@@ -201,6 +209,35 @@ class _MyHomePageState extends State<MyHomePage>
                 freehandDrawing.getCurrentStrokeLayerOptions(),
                 // 距離サークル
                 DistanceCircleLayerOptions(mapController: _mapController),
+                // ドラッグ可能マーカー
+                DragMarkerPluginOptions(
+                  markers: [
+                    DragMarker(
+                      point: LatLng(35.309945, 139.0760),
+                      width: 64.0,
+                      height: 72.0,
+                      builder: (ctx) =>
+                        MyFSImage('assets/member_icon/000.png', loadingIcon:_loadingIcon),
+                      rotateMarker: false,
+                    ),
+                    DragMarker(
+                      point: LatLng(35.309945, 139.0770),
+                      width: 64.0,
+                      height: 72.0,
+                      builder: (ctx) =>
+                        MyFSImage('assets/member_icon/001.png', loadingIcon:_loadingIcon),
+                      rotateMarker: false,
+                    ),
+                    DragMarker(
+                      point: LatLng(35.309945, 139.0780),
+                      width: 64.0,
+                      height: 72.0,
+                      builder: (ctx) =>
+                        MyFSImage('assets/member_icon/xxx.png', loadingIcon:_loadingIcon),
+                      rotateMarker: false,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -313,6 +350,7 @@ class _MyHomePageState extends State<MyHomePage>
   }
 }
 
+//-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 class OnOffSwitch extends StatefulWidget
 {
