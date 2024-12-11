@@ -67,6 +67,16 @@ class _MyHomePageState extends State<MyHomePage>
   // メンバーアイコンの読み込み中に表示するアイコン
   final Image _loadingIcon = Image.asset('assets/member_icon/loading.png', width:64, height:72);
 
+  // メンバーアイコンを一意に識別するためのキー
+  // これを使わないと、マーカーが画面外に出たときに、マーカーと画像の対応がズレる。
+  List<Key> _keyList = [
+    GlobalKey(),
+    GlobalKey(),
+    GlobalKey(),
+    GlobalKey(),
+  ];
+
+
   @override
   void initState()
   {
@@ -217,7 +227,7 @@ class _MyHomePageState extends State<MyHomePage>
                       width: 64.0,
                       height: 72.0,
                       builder: (ctx) =>
-                        MyFSImage('assets/member_icon/000.png', loadingIcon:_loadingIcon),
+                        MyFSImage('assets/member_icon/000.png', loadingIcon:_loadingIcon, key:_keyList[0]),
                       rotateMarker: false,
                     ),
                     DragMarker(
@@ -225,7 +235,7 @@ class _MyHomePageState extends State<MyHomePage>
                       width: 64.0,
                       height: 72.0,
                       builder: (ctx) =>
-                        MyFSImage('assets/member_icon/001.png', loadingIcon:_loadingIcon),
+                        MyFSImage('assets/member_icon/001.png', loadingIcon:_loadingIcon, key:_keyList[1]),
                       rotateMarker: false,
                     ),
                     DragMarker(
@@ -233,7 +243,15 @@ class _MyHomePageState extends State<MyHomePage>
                       width: 64.0,
                       height: 72.0,
                       builder: (ctx) =>
-                        MyFSImage('assets/member_icon/002.png', loadingIcon:_loadingIcon),
+                        MyFSImage('assets/member_icon/002.png', loadingIcon:_loadingIcon, key:_keyList[2]),
+                      rotateMarker: false,
+                    ),
+                    DragMarker(
+                      point: LatLng(35.309945, 139.0790),
+                      width: 64.0,
+                      height: 72.0,
+                      builder: (ctx) =>
+                        MyFSImage('assets/member_icon/003.png', loadingIcon:_loadingIcon, key:_keyList[3]),
                       rotateMarker: false,
                     ),
                   ],

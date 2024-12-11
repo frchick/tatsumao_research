@@ -18,7 +18,7 @@ https://qiita.com/chima91/items/0cd46b5965e087609ef5
 
 Google Cloud Storage と Firebase storage は、実は同一。
 Cloud Storage からみたバケットのパス
-  tatsumao-research.firebasestorage.app
+  + tatsumao-research.firebasestorage.app
 
 Cloud Storage からアクセスすると、より多くの設定が可能。
   + キャッシュ制御
