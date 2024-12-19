@@ -21,6 +21,8 @@ import 'area_data_edit.dart';
 import 'area_filter_dialog.dart';
 import 'myfs_image.dart';
 
+import 'package:location/location.dart';
+
 void main() async
 {
   await Firebase.initializeApp(
@@ -326,6 +328,20 @@ class _MyHomePageState extends State<MyHomePage>
                       ),
                       child: const Text('Dialog Test'),
                     ),
+
+                    SizedBox(height: 8),
+
+                    // GPSテスト
+                    ElevatedButton(
+                      onPressed: () {
+                        GpeTest(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        minimumSize: const Size(130, 40),
+                      ),
+                      child: const Text('GPS Test'),
+                    ),
                   ],
                 );
               }),
@@ -429,6 +445,77 @@ class MyTileProvider extends TileProvider {
   }
 }
 
+//-----------------------------------------------------------------------------
+// GPSテスト
+Future<bool> GpeTest(BuildContext context) async
+{
+  Location location = Location();
+
+  bool _serviceEnabled = await location.serviceEnabled();
+  if (!_serviceEnabled) {
+    _serviceEnabled = await location.requestService();
+    if (!_serviceEnabled) {
+      print('>GPSサービスが無効です');
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            content: Text("GPSサービスが無効です"),
+            actions: [
+              TextButton(
+                child: Text("OK"),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          );
+        },
+      );
+      return false;
+    }
+  }
+
+  PermissionStatus _permissionGranted = await location.hasPermission();
+  if (_permissionGranted == PermissionStatus.denied) {
+    _permissionGranted = await location.requestPermission();
+    if (_permissionGranted != PermissionStatus.granted) {
+      print('>GPSのパーミッションが無効です');
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            content: Text("GPSのパーミッションが無効です"),
+            actions: [
+              TextButton(
+                child: Text("OK"),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          );
+        },
+      );
+      return false;
+    }
+  }
+
+  LocationData _locationData = await location.getLocation();
+  print("location=${_locationData}");
+  await showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        content: Text("location=${_locationData}"),
+        actions: [
+          TextButton(
+            child: Text("OK"),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      );
+    },
+  );
+
+  return true;
+}
 
 
 /* NetworkNoRetryTileProvider のカスタム(WEB以外)

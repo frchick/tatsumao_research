@@ -1,5 +1,11 @@
 # tatsumao_research
 
+Flutter 3.13.9 • channel stable • https://github.com/flutter/flutter.git
+Framework • revision d211f42860 (1 year, 2 months ago) • 2023-10-25 13:42:25 -0700
+Engine • revision 0545f8705d
+Tools • Dart 3.1.5 • DevTools 2.25.0
+
+
 ## Firebase ホスティング
 
 https://tatsumao-research.web.app/
