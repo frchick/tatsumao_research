@@ -78,6 +78,10 @@ class _MyHomePageState extends State<MyHomePage>
     GlobalKey(),
   ];
 
+  // GPS位置情報へのアクセス
+  Location _location = Location();
+  // GPS位置情報を表示するか
+  bool _showGPSLocation = false;
 
   @override
   void initState()
@@ -269,6 +273,7 @@ class _MyHomePageState extends State<MyHomePage>
               stream: _updateUIStream.stream,
               builder: ((context, snapshot) {
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 手書き図形の編集ロック
                     OnOffSwitch(
@@ -342,6 +347,8 @@ class _MyHomePageState extends State<MyHomePage>
                       ),
                       child: const Text('GPS Test'),
                     ),
+                    if(_showGPSLocation) const SizedBox(height: 4),
+                    if(_showGPSLocation) GPSText(location: _location),
                   ],
                 );
               }),
@@ -381,6 +388,50 @@ class _MyHomePageState extends State<MyHomePage>
   void showTestDialog(BuildContext context)
   {
     showAreaFilterDialog(context);
+  }
+
+  Future<bool> GpeTest(BuildContext context) async
+  {
+    bool serviceEnabled = await _location.serviceEnabled();
+    if (!serviceEnabled) {
+      serviceEnabled = await _location.requestService();
+      if (!serviceEnabled) {
+        print('>GPSサービスが無効です');
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              content: Text("GPSサービスが無効です"),
+            );
+          },
+        );
+        return false;
+      }
+    }
+
+    PermissionStatus permissionGranted = await _location.hasPermission();
+    if (permissionGranted == PermissionStatus.denied) {
+      permissionGranted = await _location.requestPermission();
+      if (permissionGranted != PermissionStatus.granted) {
+        print('>GPSのパーミッションが無効です');
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              content: Text("GPSのパーミッションが無効です"),
+            );
+          },
+        );
+        return false;
+      }
+    }
+
+    // 再描画
+    setState((){
+      _showGPSLocation = !_showGPSLocation;
+    });
+
+    return true;
   }
 }
 
@@ -447,74 +498,52 @@ class MyTileProvider extends TileProvider {
 
 //-----------------------------------------------------------------------------
 // GPSテスト
-Future<bool> GpeTest(BuildContext context) async
+class GPSText extends StatefulWidget
 {
-  Location location = Location();
+  GPSText({
+    required this.location,
+    super.key });
 
-  bool _serviceEnabled = await location.serviceEnabled();
-  if (!_serviceEnabled) {
-    _serviceEnabled = await location.requestService();
-    if (!_serviceEnabled) {
-      print('>GPSサービスが無効です');
-      await showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            content: Text("GPSサービスが無効です"),
-            actions: [
-              TextButton(
-                child: Text("OK"),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          );
-        },
-      );
-      return false;
-    }
+  final Location location;
+
+  @override
+  State<GPSText> createState() => _GPSTextState();
+}
+
+class _GPSTextState extends State<GPSText>
+{
+  String _text =  "Waiting...";
+  StreamSubscription<LocationData>? _locationSubscription = null;
+
+  @override
+  void initState()
+  {
+    super.initState();
+
+    // GPS位置情報が変化したら、テキストを更新
+    _locationSubscription = widget.location.onLocationChanged.listen((LocationData locationData) {
+      print(">location.onLocationChanged()");
+      setState(() {
+        _text = "$locationData";
+      });
+    });
   }
 
-  PermissionStatus _permissionGranted = await location.hasPermission();
-  if (_permissionGranted == PermissionStatus.denied) {
-    _permissionGranted = await location.requestPermission();
-    if (_permissionGranted != PermissionStatus.granted) {
-      print('>GPSのパーミッションが無効です');
-      await showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            content: Text("GPSのパーミッションが無効です"),
-            actions: [
-              TextButton(
-                child: Text("OK"),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          );
-        },
-      );
-      return false;
-    }
+  @override
+  void dispose()
+  {
+    // GPS位置情報の監視を解除
+    _locationSubscription?.cancel();
+    _locationSubscription = null;
+
+    super.dispose();
   }
 
-  LocationData _locationData = await location.getLocation();
-  print("location=${_locationData}");
-  await showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        content: Text("location=${_locationData}"),
-        actions: [
-          TextButton(
-            child: Text("OK"),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      );
-    },
-  );
-
-  return true;
+  @override
+  Widget build(BuildContext context)
+  {
+    return Text(_text);
+  }
 }
 
 
