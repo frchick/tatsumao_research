@@ -20,7 +20,7 @@ import 'area_data.dart';
 import 'area_data_edit.dart';
 import 'area_filter_dialog.dart';
 import 'myfs_image.dart';
-
+import 'mylocation_marker.dart';
 import 'package:location/location.dart';
 
 void main() async
@@ -79,9 +79,9 @@ class _MyHomePageState extends State<MyHomePage>
   ];
 
   // GPS位置情報へのアクセス
-  Location _location = Location();
-  // GPS位置情報を表示するか
-  bool _showGPSLocation = false;
+  var _myLocMarker = MyLocationMarker();
+  // GPS位置情報のテスト表示
+  String _myLocText = "Waiting...";
 
   @override
   void initState()
@@ -262,6 +262,8 @@ class _MyHomePageState extends State<MyHomePage>
                     ),
                   ],
                 ),
+                // GPSの現在位置
+                _myLocMarker.getLayerOptions(),
               ],
             ),
           ),
@@ -339,7 +341,16 @@ class _MyHomePageState extends State<MyHomePage>
                     // GPSテスト
                     ElevatedButton(
                       onPressed: () {
-                        GpeTest(context);
+                        if(_myLocMarker.enabled){
+                          _myLocMarker.disable();
+                        }else{
+                          _myLocMarker.onLocationChanged = (LocationData locationData) {
+                            _myLocText = "lat:${locationData.latitude} lon:${locationData.longitude} head:${locationData.heading}";  
+                            updateUI();
+                          };
+                          _myLocMarker.enable(context);
+                        }
+                        updateUI();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
@@ -347,8 +358,8 @@ class _MyHomePageState extends State<MyHomePage>
                       ),
                       child: const Text('GPS Test'),
                     ),
-                    if(_showGPSLocation) const SizedBox(height: 4),
-                    if(_showGPSLocation) GPSText(location: _location),
+                    if(_myLocMarker.enabled) const SizedBox(height: 4),
+                    if(_myLocMarker.enabled) Text(_myLocText),
                   ],
                 );
               }),
@@ -388,50 +399,6 @@ class _MyHomePageState extends State<MyHomePage>
   void showTestDialog(BuildContext context)
   {
     showAreaFilterDialog(context);
-  }
-
-  Future<bool> GpeTest(BuildContext context) async
-  {
-    bool serviceEnabled = await _location.serviceEnabled();
-    if (!serviceEnabled) {
-      serviceEnabled = await _location.requestService();
-      if (!serviceEnabled) {
-        print('>GPSサービスが無効です');
-        showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              content: Text("GPSサービスが無効です"),
-            );
-          },
-        );
-        return false;
-      }
-    }
-
-    PermissionStatus permissionGranted = await _location.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await _location.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) {
-        print('>GPSのパーミッションが無効です');
-        showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              content: Text("GPSのパーミッションが無効です"),
-            );
-          },
-        );
-        return false;
-      }
-    }
-
-    // 再描画
-    setState((){
-      _showGPSLocation = !_showGPSLocation;
-    });
-
-    return true;
   }
 }
 
@@ -495,57 +462,6 @@ class MyTileProvider extends TileProvider {
     );
   }
 }
-
-//-----------------------------------------------------------------------------
-// GPSテスト
-class GPSText extends StatefulWidget
-{
-  GPSText({
-    required this.location,
-    super.key });
-
-  final Location location;
-
-  @override
-  State<GPSText> createState() => _GPSTextState();
-}
-
-class _GPSTextState extends State<GPSText>
-{
-  String _text =  "Waiting...";
-  StreamSubscription<LocationData>? _locationSubscription = null;
-
-  @override
-  void initState()
-  {
-    super.initState();
-
-    // GPS位置情報が変化したら、テキストを更新
-    _locationSubscription = widget.location.onLocationChanged.listen((LocationData locationData) {
-      print(">location.onLocationChanged()");
-      setState(() {
-        _text = "$locationData";
-      });
-    });
-  }
-
-  @override
-  void dispose()
-  {
-    // GPS位置情報の監視を解除
-    _locationSubscription?.cancel();
-    _locationSubscription = null;
-
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context)
-  {
-    return Text(_text);
-  }
-}
-
 
 /* NetworkNoRetryTileProvider のカスタム(WEB以外)
 class MyTileProvider extends TileProvider
