@@ -24,6 +24,8 @@ class MyLocationMarker
     "longitude": 139.767125,
     "heading": 0.0,
   });
+  // NOTE: LocationData.heading が null の場合に備えて、直前の値を記録
+  double _heading = 0.0;
   LocationData get location => _myLocation;
   // 地図上に表示するマーカー
   List<Marker> _markers = [];
@@ -117,12 +119,14 @@ class MyLocationMarker
 
     if(_enable){
       // マーカーを再作成。リストそのものは使いまわす。
-      var heading = location.heading ?? 0.0;
+      _heading = location.heading ?? _heading;
       var marker = Marker(
         point: LatLng(location.latitude!, location.longitude!),
+        width: 36,
+        height: 36,
         builder: (ctx) =>
           Transform.rotate(
-            angle: (heading * pi / 180),
+            angle: (_heading * pi / 180),
             child: const Icon(Icons.navigation, size: 36, color: Colors.red),
           )
       );
