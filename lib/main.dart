@@ -79,7 +79,7 @@ class _MyHomePageState extends State<MyHomePage>
   ];
 
   // GPS位置情報へのアクセス
-  var _myLocMarker = MyLocationMarker();
+  late MyLocationMarker _myLocMarker;
   // GPS位置情報のテスト表示
   String _myLocText = "Waiting...";
 
@@ -92,6 +92,9 @@ class _MyHomePageState extends State<MyHomePage>
 
     // エリアを構成するマーカーを構築
     _areaDataEditor.buildMarkers(areaData, false);
+
+    // GPS位置情報へのアクセスを初期化
+    _myLocMarker = MyLocationMarker(_mapController);
 
     //!!!! テスト
 //    testRealtimeDatabase();
@@ -198,6 +201,10 @@ class _MyHomePageState extends State<MyHomePage>
                     _areaDataEditor.checkMarker(i);
                   }
                 },
+                // 表示位置の変更に合わせた処理
+                onPositionChanged: (MapPosition position, bool hasGesture){
+                  _myLocMarker.moveMap(_mapController, position);
+                }
               ),
               nonRotatedLayers: [
                 // 高さ陰影図
@@ -225,6 +232,8 @@ class _MyHomePageState extends State<MyHomePage>
                 freehandDrawing.getCurrentStrokeLayerOptions(),
                 // 距離サークル
                 DistanceCircleLayerOptions(mapController: _mapController),
+                // GPSの各種ライン
+                _myLocMarker.getLineLayerOptions(),
                 // ドラッグ可能マーカー
                 DragMarkerPluginOptions(
                   markers: [
