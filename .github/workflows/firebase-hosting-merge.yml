@@ -18,8 +18,9 @@ jobs:
       - run: flutter pub get
 
       - run: flutter build web --release --web-renderer canvaskit
-      - run: rm ./flutter_service_worker.js
-      - run: mv ./my_service_worker.js ./flutter_service_worker.js
+      - run: ls
+      - run: rm ./build/web/flutter_service_worker.js
+      - run: mv ./build/web/my_service_worker.js ./build/web/flutter_service_worker.js
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
