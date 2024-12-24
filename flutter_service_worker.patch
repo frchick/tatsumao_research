@@ -1,0 +1,18 @@
+diff --git a/build/web/flutter_service_worker.js b/build/web/flutter_service_worker.js
+index 65ede5a..02f4b77 100644
+--- a/build/web/flutter_service_worker.js
++++ b/build/web/flutter_service_worker.js
+@@ -127,9 +126,12 @@ self.addEventListener("fetch", (event) => {
+   }
+   // If the URL is not the RESOURCE list then return to signal that the
+   // browser should take over.
+-  if (!RESOURCES[key]) {
++  var resourceFile = (RESOURCES[key] != null);
++  var mapTile = event.request.url.startsWith("https://cyberjapandata.gsi.go.jp/xyz/");
++  if (!resourceFile && !mapTile) {
+     return;
+   }
++
+   // If the URL is the index.html, perform an online-first request.
+   if (key == '/') {
+     return onlineFirst(event);
