@@ -15,6 +15,9 @@ class AreaDataEdit
   List<Polygon> _areaPolygons = [];
   List<Polygon> _areaPolygonsDispList = []; // 表示用
 
+  // ドラッグ中のマーカー番号(-1:なし)
+  int _draggingMarkerIndex = -1;
+
   // マーカーの再描画
   final _redrawAreaMarkers = StreamController<void>.broadcast();
   void redraw() { _redrawAreaMarkers.sink.add(null); }
@@ -44,6 +47,7 @@ class AreaDataEdit
   {
     return MarkerLayerOptions(
       markers: _areaMarkersDispList,
+      usePxCache: false,
       rebuild: _redrawAreaMarkers.stream,
     );
   }
@@ -179,6 +183,27 @@ class AreaDataEdit
       _areaMarkersDispList[index] = marker;
       redraw();
     }
+  }
+
+  // マーカーのドラッグを開始
+  void startDragMarker(int index)
+  {
+    if(0 <= index){
+      _draggingMarkerIndex = index;
+    }
+  }
+
+  // マーカーのドラッグを終了
+  void endDragMarker(LatLng point)
+  {
+    if(0 <= _draggingMarkerIndex){
+      var marker = _makeOneMarker(point, _areaMarkersFlag[_draggingMarkerIndex]);
+      _areaMarkers[_draggingMarkerIndex] = marker;
+      _areaMarkersDispList[_draggingMarkerIndex] = marker;
+      redraw();
+      print("endDragMarker: Marker[${_draggingMarkerIndex}] : " + point.toString());
+    }
+    _draggingMarkerIndex = -1;
   }
 
   // マーカーのマークを全てクリア(再描画込み)

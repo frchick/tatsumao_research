@@ -1,6 +1,7 @@
 //import 'dart:io'; // HttpClient
 import 'dart:async';   // Stream使った再描画、Timer
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -195,11 +196,20 @@ class _MyHomePageState extends State<MyHomePage>
                   DragMarkerPlugin(),
                 ],
                 // タップした位置のマーカーを検索
-                onTap: (tapPosition, point){
+                onTap: (TapPosition tapPosition, LatLng point){
                   int i = _areaDataEditor.findMarker(point, _mapController);
                   if(0 <= i){
                     _areaDataEditor.checkMarker(i);
                   }
+                },
+                onLongPress: (TapPosition tapPosition, LatLng point){
+                  int i = _areaDataEditor.findMarker(point, _mapController);
+                  if(0 <= i){
+                    _areaDataEditor.startDragMarker(i);
+                  }
+                },
+                onPointerUp: (PointerUpEvent event, LatLng point) {
+                    _areaDataEditor.endDragMarker(point);
                 },
                 // 表示位置の変更に合わせた処理
                 onPositionChanged: (MapPosition position, bool hasGesture){
